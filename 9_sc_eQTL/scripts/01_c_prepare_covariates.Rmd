@@ -1,0 +1,28 @@
+---
+title: "01_c_prepare_covariates"
+author: Shuyang Yao (shuyang.yao@ki.se)
+output: html_document
+date: "2024-04-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Covariates:  
+1. sample source, disease status (see sample information file)
+2. genotyping PC (see genotype data processing part)
+3. expression PCs. 
+- unique per cell type
+- per cell type, perform PCA on aggregated gene expression per donor. 
+```{bash}
+#- Level of 3 cell classes. 
+sbatch -t 2:00:00 -n 1 --mem=64g --wrap="Rscript rscript_01_c_ExpPC.R 3CT"
+#- Level of 3 cell classes. 
+sbatch -t 2:00:00 -n 1 --mem=64g --wrap="Rscript rscript_01_c_ExpPC.R 15CT"
+```
+  
+Combine to get final covariate files:  
+./9_sc_eQTL/data/covar/[3CT or 16CT]/*_covar_EUR73_2xGenoPC_batch_phenotype_4xExpPC.tsv.gz
+  
+-- end --  

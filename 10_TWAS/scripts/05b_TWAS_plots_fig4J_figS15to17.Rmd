@@ -1,0 +1,177 @@
+---
+title: "TWAS plots for fig4J and figS15, 16, and 17"
+author: Shuyang Yao (shuyang.yao@ki.se)
+output: html_document
+date: "2024-10-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+  
+Highlight gwas in twas.  
+# 3 cell classes.  
+```{r}
+library(data.table)
+library(tidyverse)
+library(ggplot2)
+library(ggrepel)
+library(rstatix)
+
+#- specify path
+MYWD="./10_TWAS/output/fig4J/"
+setwd(MYWD)
+
+#- prepare color table
+df.color.3CT <- data.frame(
+  level="3CT",
+  CellType=c("Excitatory","Inhibitory","NonNeuronal"),
+  CT_color=c("#00ADEE","#F05A28","black")
+)
+
+myCT_color=as.character(df.color.3CT %>% filter(CellType==CT) %>% select(CT_color))
+
+#- read in data and label genes highlighted in previous GWAS
+for (CT in c("Excitatory","Inhibitory","NonNeuronal")){
+  
+  inpath=paste(MYWD,"df_3CT_",CT,"_TWAS_plot_fdr.tsv",sep="")
+  
+  #- gwas genes
+  df.gwas <- fread("./workflow/geneMatrix.tsv.gz") %>%
+    distinct(ensgid,scz2022PriorityGene) %>%
+    mutate(gwas=ifelse(scz2022PriorityGene==T,"yes","no")) 
+  table(df.gwas$gwas)
+  
+  #- read TWAS data
+  df.twas1 <- fread(inpath) %>%
+    left_join(df.gwas, by="ensgid") %>%
+    mutate(gwas=ifelse(is.na(gwas)==F,gwas,"no")) %>%
+    mutate(iflabel=ifelse(sig.fdr=="yes"&gwas=="yes","yes","no")) %>%
+    mutate(color_cat_fdr2=case_when(
+      iflabel=="yes" ~ 3,
+      iflabel=="no"&sig.fdr=="yes" ~ 2,
+      sig.fdr=="no" ~ 1
+    ))
+  
+  #- manhattan plot
+  axisdf = df.twas1 %>% distinct(chr_integer, chr_len) %>%
+    rename(chr=chr_integer) %>%
+    mutate(chr_len=as.numeric(chr_len)) %>%
+    arrange(chr) %>%
+    mutate(center=cumsum(chr_len)-chr_len*0.5) %>%
+    mutate(cumu_tot=cumsum(chr_len))
+  
+  p <- ggplot(df.twas1,
+              aes(x=Gene_TSS, y=abs(signedlogPadj),
+                  size=as.character(color_cat_fdr2),
+                  color=sig.fdr)) +
+    geom_point(alpha=1) +
+    scale_color_manual(values = c("lightgrey",myCT_color)) +
+    scale_size_manual(values = c(0.1,0.8,2)) +
+    scale_x_continuous( label = axisdf$chr, breaks= axisdf$center, limits = c(0,max(axisdf$cumu_tot))) +
+    theme( 
+      legend.position="none",
+      panel.background = element_rect(fill = "transparent"),
+      axis.line = element_line(colour = "black", 
+                               size = .5, linetype = "solid"),
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor.x = element_blank()
+    ) +
+    xlab("") + ylab(expression('-log'[10]*'(TWAS-P)')) + 
+    labs(title=paste(CT, ", n=", nrow(df.twas1 %>% filter(sig.fdr=="yes") %>% distinct(ensgid)),sep="")) +
+    geom_text_repel( data=subset(df.twas1, iflabel=="yes"), 
+                      aes(label=gene_name), size=3,
+                      max.overlaps = Inf,color="black") 
+  #- output
+  outfile=paste("fig4J_",CT,"_TWAS_plot_fdr.pdf",sep="")
+  ggsave(plot = p,
+         filename=outfile,
+         width=8.5,height=2)
+}
+```
+  
+# 16 cell types  
+```{r}
+#- specify path
+MYWD="./10_TWAS/output/figS15_16_17/"
+setwd(MYWD)
+
+#- prepare color table
+library(readxl)
+df.color <- read_excel("./workflow/Cell_type_colors.xlsx") %>%
+  distinct(`Cell type (15)`, `Cell type (15) color`)
+colnames(df.color) <- c("CellType","CT_color")
+df.color$CellType <- gsub(" ", "_", df.color$CellType)
+
+#- gwas genes
+df.gwas <- fread("./workflow/geneMatrix.tsv.gz") %>%
+  distinct(ensgid,scz2022PriorityGene) %>%
+  mutate(gwas=ifelse(scz2022PriorityGene==T,"yes","no")) 
+table(df.gwas$gwas)
+
+#- loop over CT
+WD16=paste("./10_TWAS/data/TWAS_output/",lvl,sep="")
+CT_list <- basename(list.files(WD16))
+gsub("cleaned_output","",CT_list)
+
+for(CT in CT_list){
+  print(CT)
+  myCT_color=as.character(df.color %>% filter(CellType==CT) %>% select(CT_color))
+  
+  #- read TWAS data
+  a <- paste(mypath1,"df_15CT_",CT,"_TWAS_plot.tsv",sep="")
+  df.twas <- fread(a) %>% select(-gene_name) %>%
+    adjust_pvalue(p.col="Padj",output.col="FDR_fr_Padj", method="fdr") %>% # calculate fdr
+    left_join(genemx, by="ensgid") %>%
+    mutate(sig.fdr=ifelse(FDR_fr_Padj<=0.05, "yes","no"))
+  df.twas <- df.twas %>%
+    left_join(df.gwas, by="ensgid") %>%
+    mutate(gwas=ifelse(is.na(gwas)==F,gwas,"no")) %>%
+    mutate(iflabel=ifelse(sig.fdr=="yes"&gwas=="yes","yes","no")) %>%
+    mutate(color_cat_fdr2=case_when(
+      iflabel=="yes" ~ 3,
+      iflabel=="no"&sig.fdr=="yes" ~ 2,
+      sig.fdr=="no" ~ 1))
+  
+  #- chromosome size data
+  axisdf = df.twas %>% distinct(chr_integer, chr_len) %>%
+  rename(chr=chr_integer) %>%
+  mutate(chr_len=as.numeric(chr_len)) %>%
+  arrange(chr) %>%
+  mutate(center=cumsum(chr_len)-chr_len*0.5) %>%
+  mutate(cumu_tot=cumsum(chr_len)) %>%
+    filter(is.na(chr)==F)
+  
+  #- plot
+  p1 <- ggplot(df.twas, 
+               aes(x=Gene_TSS, y=abs(signedlogPadj),
+                   size=as.character(color_cat_fdr2),
+                   color=sig.fdr)) +
+  geom_point(alpha=1) +
+  scale_color_manual(values = c("lightgrey",myCT_color)) +
+  scale_size_manual(values = c(0.1,0.8,2)) +
+  scale_x_continuous( label = axisdf$chr, breaks= axisdf$center, limits = c(0,max(axisdf$cumu_tot))) +
+  theme( 
+    legend.position="none",
+    panel.background = element_rect(fill = "transparent"),
+    axis.line = element_line(colour = "black", 
+                             size = .5, linetype = "solid"),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()
+  ) +
+  xlab("") + ylab(expression('-log'[10]*'(TWAS-P)')) + 
+  labs(title=paste(CT, ", n=", nrow(df.twas %>% filter(sig.fdr=="yes") %>% distinct(ensgid)),sep="")) +
+  geom_text_repel( data=subset(df.twas, iflabel=="yes"), 
+                    aes(label=gene_name), size=3,
+                    max.overlaps = Inf,color="black") 
+  
+  #- output
+  outfile=paste(CT,"_TWAS_plot_fdr.pdf",sep="")
+  ggsave(plot = p,
+         filename=outfile,
+         width=8.5,height=1.8)
+}
+
+```
+  
+--- end ---  

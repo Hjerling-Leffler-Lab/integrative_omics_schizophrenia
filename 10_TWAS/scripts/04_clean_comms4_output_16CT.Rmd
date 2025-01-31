@@ -1,0 +1,140 @@
+---
+title: "02_check_output"
+author: "Shuyang Yao (shuyang.yao@ki.se)"
+date: "2023-06-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Clean output of comm-s4  
+  
+Output columns:  
+- X1 is the test statistics from likelihood ratio test, which will be used to computing p value, 
+- X2 is estimation of alpha (effect size), 
+- X3 is number of SNPs.  
+  
+```{r, eval=F}
+library(GWASTools)
+library(data.table)
+library(tidyverse)
+library(gap)
+library(bacon)
+library(ggplot2)
+library(rstatix)
+
+# read geneMx, for mapping gene location to sumstats
+geneMx0 <- fread("./workflow/geneMatrix.tsv")
+geneMx <- geneMx0 %>% distinct(ensgid, hg19g0, g1, g2, gstr)
+
+# specify lvl and cell type
+lvl="15CT"
+WD0=paste("./10_TWAS/data/TWAS_output/",lvl,sep="")
+
+CT_list <- list.files(WD0)
+
+#- number of genes per cell type
+# initialize dataframe (empty)
+df.ngene <- data.frame(
+  level=character(0),
+  CellType=character(0),
+  ngene=numeric(0)
+)
+# fill in
+for(i in 1:length(CT_list)){
+  CT=CT_list[i]
+  WD1=paste("./10_TWAS/data/",lvl,"/", CT, sep="")
+  setwd(WD1)
+  infiles <- list.files(pattern = "INPUT1_") %>% as.data.frame()
+  colnames(infiles) <- "filename"
+  input1 <- as.list(infiles$filename) %>%
+    map_df(function(x) fread(x, stringsAsFactors=FALSE, data.table=FALSE))
+  df.ngene[i,c(1,2)] <- c(lvl,CT)
+  df.ngene[i,3] <- length(unique(input1$Gene))
+}
+df.ngene
+rm(input1,i,CT,infiles,WD1)
+
+#- clean output
+for(CT in CT_list){
+  if(CT%in%c("Astrocytes","Endothelial_and_mural_cells","Microglial_cells")){
+    print(paste("skip cell type",CT, sep=" "))}else{
+  WD=paste("./10_TWAS/data/TWAS_output/",lvl,"/",CT,sep="")
+  setwd(WD)
+  system("mkdir cleaned_output")
+
+#-- per chr clean output
+
+  for (i in 1:22){
+    myfile=paste("OUTPUT_chr",i,"_",CT,"_scz2022.RData",sep="")
+    load(myfile)
+  
+    out=fm$out_param
+    sum(fm$genetype1[out[,3]!=-99] ==
+          fm$gene_type1)==nrow(fm$out_param0)
+    
+    a<-cbind(data.frame(fm$gene_type1),data.frame(fm$out_param0))
+    head(a)
+    a$P=pchisq(a$X1,1,lower.tail = F)
+    a1<- a[complete.cases(a$X1),]
+  
+    summary(a1$X3)
+  
+    ##inflation lamda compute 
+    chisq <- qchisq(1-a1$P,1)
+    lambda <- median(qchisq(1-a1$P,1))/qchisq(0.5,1) 
+    lambda
+    print(paste(CT,"chr",i,"lambda is:", lambda,sep=" "))
+  
+    ##control for inflation
+    a1$X1adj=a1$X1/lambda
+    a1$Padj=pchisq(a1$X1adj,1,lower.tail = F)
+    median(qchisq(1-a1$Padj,1))/qchisq(0.5,1)
+    summary(a1$Padj)
+  
+    ##significant genes after genomic control 
+    ngene=as.numeric(df.ngene %>% filter(level==lvl,CellType==CT) %>% select(ngene))
+    b<-a1 %>% filter(Padj<(0.05/ngene))
+    toprint <- paste(lvl, CT, "chr", i, "Nr sig. gene =",nrow(b),sep=" ")
+    print(toprint)
+  
+  # output TWAS sumstats
+  a2 <- a1 %>%
+    rename(ensgid=fm.gene_type1) %>%
+    left_join(geneMx, by="ensgid") %>%
+    rename(X1_testStat=X1,
+           X2_effectSize=X2,
+           X3_nSNP=X3,
+           X1_testStatAdj=X1adj)
+  
+  outname <- paste("cleaned_output/TWAS_",CT,"_chr",i,".tsv",sep="")
+  fwrite(a2, outname, sep="\t", col.names=T)
+  }
+  }
+}
+
+#-- end --#
+```
+  
+combine chr per cell type  
+```{bash, eval=F}
+CelltypeList=(Astrocytes Endothelial_and_mural_cells Excitatory_Layer_2-3_IT_neurons_I Excitatory_Layer_2-3_IT_neurons_II Excitatory_Layer_3-4_IT_neurons Excitatory_Layer_3-6_IT_neurons Excitatory_Layer_5-6_CT_and_NP_neurons Excitatory_Layer_5-6_IT_neurons_I Excitatory_Layer_5-6_IT_neurons_II Inhibitory_LAMP5_neurons Inhibitory_PVALB_neurons Inhibitory_SST_neurons Inhibitory_VIP_neurons Microglial_cells Oligodendrocyte_progenitor_cells Oligodendrocytes)
+
+# combine all in cleaned_output
+lvl=16CT
+
+for CT in $CelltypeList
+do
+ echo ${CT}
+ cd ./10_TWAS/data/TWAS_output/${lvl}/${CT}/cleaned_output
+ cat TWAS_${CT}_chr1.tsv > allCHR_TWAS_${CT}.tsv
+ for i in {2..22}
+ do
+  cat TWAS_${CT}_chr${i}.tsv | sed '1d' >> allCHR_TWAS_${CT}.tsv
+ done
+done
+```
+  
+--- end ---  

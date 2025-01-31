@@ -1,0 +1,38 @@
+---
+title: "01_b_prepare_expression_input"
+author: Shuyang Yao (shuyang.yao@ki.se)
+output: html_document
+date: "2024-04-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Steps:
+1. Filter genes. 
+2. Get expression data input. 
+
+1. Filter genes 
+```{bash}
+cd ./scripts
+#- Level of 3 cell classes. 
+sbatch -t 2:00:00 -n 1 --mem=64g --wrap="Rscript rscript_01_b1_Filter_Genes_3CTs.R"
+
+#- Level of 16 cell types  
+sbatch -t 2:00:00 -n 1 --mem=64g --wrap="Rscript rscript_01_b1_Filter_Genes_16CTs.R"
+```
+  
+2. Get expression data input. 
+```{bash}
+#- Level of 3 cell classes. 
+sbatch -t 2:00:00 -n 1 --mem=64g --wrap="Rscript rscript_01_b2_Get_Exp_Input_3CTs.R Excitatory"
+sbatch -t 2:00:00 -n 1 --mem=64g --wrap="Rscript rscript_01_b2_Get_Exp_Input_3CTs.R Inhibitory"
+sbatch -t 2:00:00 -n 1 --mem=64g --wrap="Rscript rscript_01_b2_Get_Exp_Input_3CTs.R NonNeuronal"
+
+#- Level of 16 cell types.  
+sbatch -t 2:00:00 -n 1 --mem=64g --wrap="Rscript rscript_01_b2_Get_Exp_Input_16CTs.R"
+
+```
+  
+-- end --  
