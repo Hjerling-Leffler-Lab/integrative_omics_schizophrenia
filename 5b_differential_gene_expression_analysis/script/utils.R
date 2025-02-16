@@ -5,14 +5,15 @@
 
 
 #settings:
-get_paths <- function(main_path,main_subfolder,data_folder){
+get_paths <- function(main_path,main_project_path,data_folder){
   paths <- c()
-  paths$sample_info_data <- paste0(main_path,"/2_alignment/output/")
-  paths$QC_data <- paste0(main_path,"/3_quality_control/output/")
-  paths$data <- paste0(main_path,main_subfolder,"/output/",data_folder,"/")
-  paths$scdata <- "D:/Documents/projects/SCZ_human_cortex/data/filtered_loom_formatted_data_cellranger/" #paste0(main_path,'/4_data_integration_and_cell_type_annotation/output/')
-  paths$results <- paste0(main_path,main_subfolder,"/output/DEGs/")
-  paths$xy_chr_list <- paste0(main_path,'/4_data_integration_and_cell_type_annotation/output/')
+  paths$sample_info_data <- paste0(main_project_path,"/2_alignment/output/")
+  paths$QC_data <- paste0(main_project_path,"/3_quality_control/output/")
+  paths$data <- paste0(main_path,"/output/",data_folder)
+  paths$results <- paste0(main_path,"/output/DEGs/")
+  paths$results_RUV <- paste0(main_path,'/output/RUV/')
+  paths$xy_chr_list <- paste0(main_project_path,'/4_data_integration_and_cell_type_annotation/output/')
+  paths$CT_spec_file<-paste0(main_path,'/data/')
   #make sure path exists
   dir.create(paths$results, recursive=TRUE, showWarnings = FALSE)
   return(paths)
@@ -232,16 +233,22 @@ get_metadata <- function(data_all, paths, filename_data_sample_info, filename_da
   return(metadata_imputed)
 }
 
+get_cell_Type_name_from_filename <- function(countData_filenames,file_id,opt_aggregation){
 
-#function to load aggregated data
-load_count_data <- function(countData_filenames,colData_filenames,file_id,opt_celltype_groups,opt_aggregation,paths){
-
-  setwd(paths$data)
   file_name_pieces <- str_split(countData_filenames[file_id],'_')
-  ct_str <- str_split(countData_filenames[file_id],paste0(opt_celltype_groups,'_'))
-  celltype_aggr <- str_split(ct_str[[1]][1],paste0('_',opt_aggregation))[[1]][1]
+  celltype_aggr <- str_split(countData_filenames[file_id],paste0('_',opt_aggregation))[[1]][1]
   celltype <- str_split(celltype_aggr[1],'_filtered_')[[1]][2]
   
+  return(celltype)
+}
+
+#function to load aggregated data
+load_count_data <- function(countData_filenames,colData_filenames,file_id,opt_aggregation,paths){
+  
+
+  setwd(paths$data)
+  celltype <- get_cell_Type_name_from_filename(countData_filenames,file_id,opt_aggregation)
+  file_name_pieces <- str_split(countData_filenames[file_id],'_')
   results_subfolder_raw <- paste0(do.call(paste,c(as.list(file_name_pieces[[1]][9:length(file_name_pieces[[1]])]),sep="_")))
   results_subfolder <- paste0(substr(results_subfolder_raw,1,nchar(results_subfolder_raw)-4),'/')
   
@@ -277,16 +284,6 @@ load_count_data <- function(countData_filenames,colData_filenames,file_id,opt_ce
   CC <- CC[bool_xy_chr==FALSE, ]
   
   return(list("data_obj", colData=colData, CC=CC, celltype=celltype, results_subfolder=results_subfolder))
-}
-
-#load sc data for size factor estimation:
-get_non_aggregated_counts <- function(path_scdata,filename_scdata){
-  data <- connect(paste0(path_scdata,filename_scdata),mode = "r", skip.validate = TRUE)
-  counts <- data[["matrix"]][,]
-  rownames(counts) <- paste0(data[["row_attrs/Gene"]][],'_',data[["row_attrs/Accession"]][])
-  colanems(counts) <- data[["col_attrs/cellID"]][]
-  data$close_all()
-  return(counts)
 }
 
 #randomize order of group labels:
@@ -343,17 +340,57 @@ get_significant_results <- function(R,res,alpha_val,sfe_type,shrinkage_type,cell
   return(R)
 }
 
+plot_RUV_factor_correlation_with_metadata <- function(RUV_factors,metadata,results_path){
+  
+  RUV_factor_names <- colnames(RUV_factors)
+  corr_types <- c("pearson","spearman")
+  #merge data frames
+  RUV_factors$donor_ID_python <- rownames(RUV_factors)
+  Data <- merge(RUV_factors,metadata,by = "donor_ID_python")
+  #continuous variables:
+  var_cont <- c("Age" ,"PMI_h","p_cells_del_filt","mean_reads_per_umi","num_umi","num_reads","p_valid_barcodes","p_sequencing_saturation","p_genome_not_gene", "p_mapped_reads","p_unmapped_reads","mean_counts_per_barcode","std_counts_per_barcode","median_gpc")
+  n <- length(RUV_factor_names)
+  m <- length(var_cont)
+  for (corr_method in corr_types){
+    M_cor <- matrix(0,n,m)
+    for (f_id in seq(1,n)){
+      for (m_id in seq(1,m)){
+        print(var_cont[m_id])
+        M_cor[f_id,m_id] = cor(Data[RUV_factor_names[f_id]],Data[var_cont[m_id]],method=corr_method)
+      }
+    }
+    rownames(M_cor) <- RUV_factor_names
+    colnames(M_cor) <- var_cont
+    #plot corr as ellipses
+    pdf(file = paste0(results_path,as.character(length(RUV_factor_names)),"_RUV_factor_",corr_method,"_correlation_wih_metadata_continuous.pdf")) # The height of the plot in inches
+    print(corrplot(M_cor,method="ellipse",addCoef.col = 'black',tl.col = 'black'))
+    dev.off()
+  }
+  
+  #categorical variables:
+  browser()
+  var_cat <- c("Group","source","Sex","Library") #"ancestry_european"
+  m <- length(var_cat)
+  p <- list()
+  for (f_id in seq(1,n)){
+    eval(parse(text=paste0("Data %>% pivot_longer(cols = var_cat) %>% 
+      ggplot(aes(x=factor(value),y=",RUV_factor_names[f_id],")) + geom_boxplot() + facet_wrap(.~name,scales='free_x') + theme_bw() + xlab('metadata variables') + geom_jitter(pch=21,position = position_jitter(width = 0.2),show.legend = FALSE,alpha = 0.5)
+    ggsave(paste0(results_path,RUV_factor_names[f_id],'_boxplots_for_categorical_metadata.pdf'))")))
+  }
+  #pdf(file = paste0(results_path,as.character(length(RUV_factor_names)),"_RUV_factor_boxplots_for_categorical_metadata.pdf"))
+  #do.call(grid.arrange,p)
+  #dev.off()
+}
 
 #remove genes with low counts and store data in DDS object:
-get_filtered_data <- function(CC,colData,design_formula,path_xy_chr_list){
-  
+get_filtered_data <- function(CC,colData,design_formula,path_xy_chr_list,p_samples_larger_10_counts){
   #remove X and Y chromosome genes
   setwd(path_xy_chr_list)
   xy_chr_genes <- read.csv.raw("XYchr_genes.csv")
   bool_xy_chr <- rownames(CC) %in% paste(xy_chr_genes$Gene,xy_chr_genes$Accession,sep='_')
   CC <- CC[bool_xy_chr==FALSE, ]
-  
-  DDS <- DESeqDataSetFromMatrix(countData=round(CC),colData,design_formula,tidy=FALSE,ignoreRank=FALSE)
+
+  DDS <- DESeqDataSetFromMatrix(countData=round(CC),colData,formula(eval(parse(text=design_formula))),tidy=FALSE,ignoreRank=FALSE)
   if (opt_filter_genes_with_low_counts==TRUE){
     # pre-filtering: remove rows in which there are very few reads:
     keep <- rowSums(counts(DDS)) >= 10
@@ -400,6 +437,7 @@ get_sfe_type <- function(DDS){
 
 #get and create results folder
 get_results_folder<-function(path_res,design_interactions_str,results_subfolder,i,opt_randomize_group_labels){
+  
 
   if (opt_randomize_group_labels==TRUE){
     path_res <- paste0(path_res,"randomized_group_labels_",as.character(i),"/")
@@ -416,16 +454,17 @@ get_results_folder<-function(path_res,design_interactions_str,results_subfolder,
 
 #sum aggregated data across cell types
 #date: 13.10.2021
-load_count_data_aggregated_across_celltypes <- function(path_expr_data, path_xy_chr_list, path_code, opt_celltype_groups, opt_aggregation, add_str_pagoda, opt_downsampled, i){
-  setwd(path_expr_data)
+load_count_data_aggregated_across_celltypes <- function(paths, path_code, opt_aggregation, add_str_pagoda, opt_downsampled, i){
+
+  setwd(paths$data)
   if (opt_downsampled==TRUE){
     file_str_end <- paste0("_ds_",i,".csv")
-    countData_search_str <- paste0("Aggr_counts",add_str_pagoda,"_TH_and_D_adj_filtered_",'*_',opt_aggregation,file_str_end)
-    colData_search_str <- paste0("G_info",add_str_pagoda,"_TH_and_D_adj_filtered_",'*_',opt_aggregation,file_str_end)
+    countData_search_str <- paste0("Aggr_counts",add_str_pagoda,"_TH_and_D_adj_filtered_all_",opt_aggregation,file_str_end)
+    colData_search_str <- paste0("G_info",add_str_pagoda,"_TH_and_D_adj_filtered_all_",opt_aggregation,file_str_end)
   } else{
     file_str_end <- "*.csv"
-    countData_search_str <- paste0("Aggregated_counts_cellranger",add_str_pagoda,"_TH_and_D_adj_filtered_",opt_celltype_groups,'_*_',opt_aggregation,file_str_end)
-    colData_search_str <- paste0("G_info_cellranger",add_str_pagoda,"_TH_and_D_adj_filtered_",opt_celltype_groups,'_*_',opt_aggregation,file_str_end)
+    countData_search_str <- paste0("Agg_counts_",add_str_pagoda,"_TH_and_D_adj_filtered_all_",opt_aggregation,file_str_end)
+    colData_search_str <- paste0("G_info_",add_str_pagoda,"_TH_and_D_adj_filtered_all_",opt_aggregation,file_str_end)
   }
   
   print(countData_search_str)
@@ -435,17 +474,19 @@ load_count_data_aggregated_across_celltypes <- function(path_expr_data, path_xy_
   colData_filenames <- Sys.glob(colData_search_str)
   
   setwd(path_code)
+  data_all <- load_count_data(countData_filenames,colData_filenames,1,opt_aggregation,paths)
+
   #aggregate data across cell types:
-  for (file_id in seq(1,length(countData_filenames))){
-    #load data:
-    data <- load_count_data(countData_filenames,colData_filenames,file_id,opt_celltype_groups,opt_aggregation,path_expr_data)
-    if (file_id==1){
-      data_all <- data
-      donors <- data_all$colData['donor_ID_python'][[1]]
-    } else{
-      data_all$CC[,1] <- data_all$CC[,1] + data$CC[,1]
-    }
-  }
+  #for (file_id in seq(1,length(countData_filenames))){
+  #  #load data:
+  #  data <- load_count_data(countData_filenames,colData_filenames,file_id,opt_celltype_groups,opt_aggregation,paths)
+  #  if (file_id==1){
+  #    data_all <- data
+  #    donors <- data_all$colData['donor_ID_python'][[1]]
+  #  } else{
+  #    data_all$CC[,1] <- data_all$CC[,1] + data$CC[,1]
+  #  }
+  #}
   
   #remove X and Y chromosome genes
   setwd(paths$xy_chr_list)
@@ -542,7 +583,7 @@ get_variables_selected_by_mars <- function(data_all,n_rep,path_results){
   return(vars_selected)
 }
 
-get_RUV_data <- function(DDS_RUV,res_RUV,opt_filter_high_CT_specificity_genes,path_CT_spec_file,opt_data_halves,pval_TH,specificity_TH,min_p_donors_groups){
+get_RUV_data <- function(DDS_RUV,res_RUV,opt_filter_high_CT_specificity_genes,path_CT_spec,filename_CT_spec,opt_data_halves,pval_TH,specificity_TH,min_p_donors_groups){
   if (opt_data_halves==TRUE){
     idx_rnd <- get_indices_for_random_dataset_halves(DDS_RUV,min_p_donors_groups)
   } else{
@@ -565,10 +606,12 @@ get_RUV_data <- function(DDS_RUV,res_RUV,opt_filter_high_CT_specificity_genes,pa
   
   empirical <- rownames(set_ini)[ rownames(set_ini) %in% not.sig ]
   
+  print(paste0(length(empirical)," genes left in data set for RUV analysis before CT specificity filtering!"))
+  
   #load cell type specificity scores for genes
   #filter out genes with high cell type specificity scores
   if (opt_filter_high_CT_specificity_genes==TRUE){
-    load(path_CT_spec_file)#object is called dat
+    load(paste0(path_CT_spec, filename_CT_spec))#object is called dat
     #sort genes by specificity
     dat_sorted <- dat[order(dat$specificity,decreasing=TRUE),]
     #create list of unique genes while preserving order
@@ -591,87 +634,55 @@ get_RUV_data <- function(DDS_RUV,res_RUV,opt_filter_high_CT_specificity_genes,pa
   return(D)
 }
 
-get_correlation_LFC_data_halves <- function(DDS_RUV, model_str_full_ini,model_str_red_ini, opt_DESeq2_parallel,res_RUV, k_RUV_i,opt_filter_high_CT_specificity_genes,path_CT_spec_file,pval_TH,specificity_TH,min_p_donors_groups){
+##for a particular data split: calculate log2FC of DESeq2 result between data halves for a range of RUV values
+get_correlation_LFC_data_halves <- function(DDS, n_RUV_factors, model_str_full,model_str_red, opt_DESeq2_parallel,min_p_donors_groups){
+
+  ## generate indices for random dataset halves
+  idx_rnd <- get_indices_for_random_dataset_halves(DDS,min_p_donors_groups)
   
-  M_cor_spearman <- NaN
+  #initialize correlation value
+  M_cor <- matrix(NaN,1,2)
   
-  #apply split here:
-  #data_RUV <- randomly_split_data_into_halves(data_RUV)
-  #data_RUV now contains data_RUV$CC_1st_half and data_RUV$CC_2nd_half
-  D <- get_RUV_data(DDS_RUV,res_RUV,opt_filter_high_CT_specificity_genes,path_CT_spec_file,TRUE,pval_TH,specificity_TH,min_p_donors_groups)
-  
-  print("RUV splits: check!")
-  
-  if (k_RUV_i != 0){
-    flag_RUV=13
-    while (flag_RUV!=0){
-      flag_RUV <- tryCatch(
-        {
-          #set_1st_half <- RUVg(D$set_1st_half_ini, D$empirical_1st_half, k=k_RUV_i)
-          #set_2nd_half <- RUVg(D$set_2nd_half_ini, D$empirical_2nd_half, k=k_RUV_i)
-          set <- RUVg(D$set_ini, D$empirical, k=k_RUV_i)
-          
-          flag <- 0
-        },
-        error=function(cond) {
-          message("Here's the original error message:")
-          message(cond)
-          flag <- 303
-          return(flag)
-        },
-        warning=function(cond) {
-          message("Here's the original warning message:")
-          message(cond)
-          flag <- 101
-          return(flag)
-        },
-        finally={
-          message(paste0(paste0("\n RUVg for k_RUV_i = ",as.character(k_RUV_i))," is done! \n"))
-        }
-      )
-      D <- get_RUV_data(DDS_RUV,res_RUV,opt_filter_high_CT_specificity_genes,path_CT_spec_file,TRUE,pval_TH,specificity_TH,min_p_donors_groups)
+  if (n_RUV_factors>0){
+    ## (1) calculate RUVs for n_RUV_factors factors based on filtered data set (including all samples) 
+    #set <- RUVg(D$set_ini, D$empirical, k=n_RUV_factors)
+    
+    #load RUVs
+    set <- readRDS(file=paste0(paths$results_RUV,"set_",as.character(n_RUV_factors),"_RUVS.rds"))
+    
+    RUV_factors <- rep(NaN,n_RUV_factors)
+    for (k in seq(1,n_RUV_factors)){
+      RUV_factors[k] <- paste0("W_",as.character(k))
     }
     
-    #TO DO: run DESeq2 with these RUVs in the model formulars
-    # change formular
-    #add_RUV_str <- paste(colnames(pData(set_1st_half)),collapse='+')
-    add_RUV_str <- paste(colnames(pData(set)),collapse='+')
-    model_str_full <- paste(model_str_full_ini,add_RUV_str,sep=' + ')
-    model_str_red <- paste(model_str_red_ini,add_RUV_str,sep = ' + ')
-    design_formula_full <- formula(eval(parse(text=model_str_full)))
-    design_formula_red <- formula(eval(parse(text=model_str_red)))
-    
-  } else{
-    #design formulas without RUVs
-    design_formula_full <- formula(eval(parse(text=model_str_full_ini)))
-    design_formula_red <- formula(eval(parse(text=model_str_red_ini)))
+    ## (2) update full and reduced design, include n_RUV_factors RUV factors:
+    model_str_full <- get_design_str(factors_to_include=RUV_factors,opt_RUV=TRUE,opt_red=FALSE)
+    model_str_red <- get_design_str(factors_to_include=RUV_factors,opt_RUV=TRUE,opt_red=TRUE)
   }
   
-  print("Check 1!")
-  if (k_RUV_i != 0){
-    print(paste0("model_str_full=",model_str_full))
-    print(paste0("model_str_red=",model_str_red))
-  } else{
-    print(paste0("model_str_full=",model_str_full_ini))
-    print(paste0("model_str_red=",model_str_red_ini))
-  }
+  design_formula_full <- formula(eval(parse(text=model_str_full)))
+  design_formula_red <- formula(eval(parse(text=model_str_red)))
+  
+  #initialize data halve DDS objects
+  DDS_1st_half_k <- c()
+  DDS_2nd_half_k <- c()
   
   #split DDS object and update design:
-  DDS_RUV_1st_half_k <- DDS_RUV[,D$idx_rnd$first]
-  DDS_RUV_2nd_half_k <- DDS_RUV[,D$idx_rnd$second]
-  DDS_RUV_1st_half_k@design <- design_formula_full
-  DDS_RUV_2nd_half_k@design <- design_formula_full
+  DDS_1st_half_k <- DDS[,idx_rnd$first]
+  DDS_2nd_half_k <- DDS[,idx_rnd$second]
+  DDS_1st_half_k@design <- design_formula_full
+  DDS_2nd_half_k@design <- design_formula_full
   
-  #determine how many genes have positive counts (>0) for all samples and decide for sfe setting based on that
-  sfe_type_1st <- get_sfe_type(DDS_RUV_1st_half_k)
-  sfe_type_2nd <- get_sfe_type(DDS_RUV_2nd_half_k)
+  #for each half: determine how many genes have positive counts (>0) for all samples and decide for sfe setting based on that
+  sfe_type_1st <- get_sfe_type(DDS_1st_half_k)
+  sfe_type_2nd <- get_sfe_type(DDS_2nd_half_k)
   
   print("Check 2!")
   
-  if (k_RUV_i != 0){
+  if (n_RUV_factors != 0){
     # integrate RUV factors in DDS objects colData
-    DDS_RUV_1st_half_k <- integrate_RUV_factors_in_DDS_obj(DDS_RUV_1st_half_k,set,D,'first')
-    DDS_RUV_2nd_half_k <- integrate_RUV_factors_in_DDS_obj(DDS_RUV_2nd_half_k,set,D,'second') 
+    DDS_1st_half_k <- integrate_RUV_factors_in_DDS_obj(DDS_1st_half_k,set,idx_rnd,'first')
+    DDS_2nd_half_k <- integrate_RUV_factors_in_DDS_obj(DDS_2nd_half_k,set,idx_rnd,'second') 
   }
   
   print("Check 3!")
@@ -679,7 +690,14 @@ get_correlation_LFC_data_halves <- function(DDS_RUV, model_str_full_ini,model_st
   flag_1st <- tryCatch(
     {
       #run DSEq2:
-      DDS_RUV_1st_half_k <- DESeq(object=DDS_RUV_1st_half_k,parallel=opt_DESeq2_parallel,sfType = sfe_type_1st, test="LRT", reduced = design_formula_red, useT=TRUE, minmu = 1e-6, minReplicatesForReplace = Inf)
+      DDS_1st_half_k <- DESeq(object=DDS_1st_half_k,
+                              parallel=opt_DESeq2_parallel,
+                              sfType = sfe_type_1st, 
+                              test="LRT", 
+                              reduced = design_formula_red, 
+                              useT=TRUE, 
+                              minmu = 1e-6, 
+                              minReplicatesForReplace = Inf)
       # The return value of `readLines()` is the actual value 
       # that will be returned in case there is no condition 
       # (e.g. warning or error). 
@@ -704,14 +722,21 @@ get_correlation_LFC_data_halves <- function(DDS_RUV, model_str_full_ini,model_st
     },
     finally={
       #store correlation of log2FoldChanges in correlation matrix (n_splits x n_RUV_factors_max)
-      message(paste0(paste0("\n k_RUV_i = ",as.character(k_RUV_i))," is done (1/2)! \n"))
+      message(paste0("\n n_RUV_factors = ",as.character(n_RUV_factors))," is done (1/2)! \n")
     }
   )
   print("Check 4!")
   flag_2nd <- tryCatch(
     {
       #run DSEq2:
-      DDS_RUV_2nd_half_k <- DESeq(object=DDS_RUV_2nd_half_k,parallel=opt_DESeq2_parallel,sfType = sfe_type_2nd, test="LRT", reduced = design_formula_red, useT=TRUE, minmu = 1e-6, minReplicatesForReplace = Inf)
+      DDS_2nd_half_k <- DESeq(object=DDS_2nd_half_k,
+                              parallel=opt_DESeq2_parallel,
+                              sfType = sfe_type_2nd, 
+                              test="LRT", 
+                              reduced = design_formula_red, 
+                              useT=TRUE, 
+                              minmu = 1e-6, 
+                              minReplicatesForReplace = Inf)
       
       # The return value of `readLines()` is the actual value 
       # that will be returned in case there is no condition 
@@ -737,20 +762,20 @@ get_correlation_LFC_data_halves <- function(DDS_RUV, model_str_full_ini,model_st
     },
     finally={
       #store correlation of log2FoldChanges in correlation matrix (n_splits x n_RUV_factors_max)
-      message(paste0(paste0("\n k_RUV_i = ",as.character(k_RUV_i))," is done (2/2)! \n"))
+      message(paste0("\n n_RUV_factors = ",as.character(n_RUV_factors))," is done (2/2)! \n")
     }
   )
   print("Check 5!")
+  alpha_val<-0.05 # doesn't really matter since all log2FC are used for correlation calculation anyways
   if (flag_1st==0 & flag_2nd==0){
-    res_RUV_1st_half_k <- results(DDS_RUV_1st_half_k,alpha=alpha_val,contrast=c("Group", "SCZ","CTRL"),independentFiltering = FALSE)
-    res_RUV_2nd_half_k <- results(DDS_RUV_2nd_half_k,alpha=alpha_val,contrast=c("Group", "SCZ", "CTRL"),independentFiltering = FALSE)
-    #M_cor$spearman[split_i,k_id] <- cor(res_RUV_1st_half_k$log2FoldChange,res_RUV_2nd_half_k$log2FoldChange,method='spearman')
-    #M_cor$pearson[split_i,k_id] <- cor(res_RUV_1st_half_k$log2FoldChange,res_RUV_2nd_half_k$log2FoldChange,method='pearson')
-    M_cor_spearman <- cor(res_RUV_1st_half_k$log2FoldChange,res_RUV_2nd_half_k$log2FoldChange,method='spearman')
-    #M_cor$pearson[k_id] <- cor(res_RUV_1st_half_k$log2FoldChange,res_RUV_2nd_half_k$log2FoldChange,method='pearson')
+    res_1st_half_k <- results(DDS_1st_half_k,alpha=alpha_val,contrast=c("Group", "SCZ","CTRL"),independentFiltering = FALSE)
+    res_2nd_half_k <- results(DDS_2nd_half_k,alpha=alpha_val,contrast=c("Group", "SCZ", "CTRL"),independentFiltering = FALSE)
+    # calculate spearman/ pearson correlation
+    M_cor[1,1] <- cor(res_1st_half_k$log2FoldChange,res_2nd_half_k$log2FoldChange,method="spearman")
+    M_cor[1,2] <- cor(res_1st_half_k$log2FoldChange,res_2nd_half_k$log2FoldChange,method="pearson")
   }
   
-  return(M_cor_spearman)
+  return(M_cor)
 }
 
 #get background gene set
@@ -792,7 +817,8 @@ get_background <- function(path_background,BrainCortex_TH,genetype,opt_backgroun
   return(b)
 }
 
-calculate_and_export_RUVs = function(D,DDS_RUV,colData,n_RUV_factors,n_MARS_vars,path_res_RUV,opt_plot_variance, opt_downsampled_data,i_ds){
+calculate_and_export_RUVs = function(D,DDS_RUV,colData,n_RUV_factors,path_res_RUV,opt_plot_variance, opt_downsampled_data,i_ds){
+
   set_ini <- RUVg(D$set_ini, D$empirical, k=n_RUV_factors)
   set <- betweenLaneNormalization(set_ini, which="upper")
   
@@ -826,7 +852,7 @@ calculate_and_export_RUVs = function(D,DDS_RUV,colData,n_RUV_factors,n_MARS_vars
     plot_RUV_factors(DDS_RUV,pData(set),data_all$celltype,path_res_RUV,'Group',n_RUV_factors,i,opt_downsampled_data,i_ds)
     
     factor_str <- paste0("W",i)
-    eval(parse(text=paste0(paste0(paste0(factor_str,"<-as.numeric(pData(set)[,"),as.character(i)),"])")))
+    eval(parse(text=paste0(factor_str,"<-as.numeric(pData(set)[,",as.character(i),"])")))
     test_res <- t.test(eval(parse(text=factor_str))[DDS_RUV$Group=='CTRL'],eval(parse(text=factor_str))[ DDS_RUV$Group=='SCZ'],alternative = "two.sided", 
                        mu = 0, paired = FALSE, var.equal=FALSE, conf.level = 0.95)
     print(test_res$p.value)
@@ -836,9 +862,9 @@ calculate_and_export_RUVs = function(D,DDS_RUV,colData,n_RUV_factors,n_MARS_vars
   }
   #analyse each factors contribution to the expression variation of each gene 
   #store RUV factors in dataframe
-  #RUV_factor_info <- data.frame(W1,W2,W3,W4)
+
   a <- seq(1,n_RUV_factors)
-  RUV_factors <- eval(parse(text=paste0(paste0('data.frame(',paste(paste0("W",a),collapse=',')),')')))
+  RUV_factors <- eval(parse(text=paste0('data.frame(',paste(paste0("W",a),collapse=','),')')))
   rownames(RUV_factors)<-colData$donor_ID_python
   #rownames(RUV_factor_info) <- 
   #expression values can be accessed via: counts(DDS)
@@ -872,56 +898,21 @@ calculate_and_export_RUVs = function(D,DDS_RUV,colData,n_RUV_factors,n_MARS_vars
   #if one wants to use them: store result and load for DEG analysis
   #save RUV factors
   setwd(path_res_RUV)
-  saveRDS(RUV_factors,file=paste0("RUV_factors_",n_MARS_vars,"_MARS_vars_",n_RUV_factors,"_factors",file_ending))
+  saveRDS(RUV_factors,file=paste0("RUV_factors_",n_RUV_factors,"_factors",file_ending))
   
   return(RUV_factors)
 }
 
-#get model
-get_model <- function(n_MARS_vars_to_include,kind){
-  #specify design:
-  if (kind=="full"){
-    if (n_MARS_vars_to_include == 4){
-      model_str <- "~ mean_reads_per_umi + p_unmapped_reads + median_gpc + num_reads + Group"
-    } else if (n_MARS_vars_to_include == 2){
-      model_str <- "~ mean_reads_per_umi + p_unmapped_reads + Group"
-    } else if (n_MARS_vars_to_include == 0){
-      model_str <- "~ Group"
-    } else{
-      print(paste0(paste0("For the specified number of n_MARS_vars_to_include=",n_MARS_vars_to_include),"the model is unfortunately not implemented yet!"))
-    }
-  } else if (kind=="reduced"){
-    if (n_MARS_vars_to_include == 4){
-      model_str <- "~ mean_reads_per_umi + p_unmapped_reads + median_gpc + num_reads"
-    } else if (n_MARS_vars_to_include == 2){
-      model_str <- "~ mean_reads_per_umi + p_unmapped_reads"
-    } else if (n_MARS_vars_to_include == 0){
-      model_str <- "~ 1"
-    } else{
-      print(paste0(paste0("For the specified number of n_MARS_vars_to_include=",n_MARS_vars_to_include),"the model is unfortunately not implemented yet!"))
-    }
-  }
-  return(model_str)
-}
-
-get_design_str = function(factors_to_include,sample_sel,opt_RUV,opt_red){
-  
-  if (opt_red==TRUE){
-    design_str <- "~ 1"
-  } else{
-    design_str <- "~ Group"
-  } 
-  
+get_design_str = function(factors_to_include,opt_RUV,opt_red){
+  design_str <- "~"
   if (opt_RUV==TRUE){
-    if (opt_red==TRUE){
-      design_str <- paste0(design_str,' + ')
-    } else{
-      design_str <- paste0("design(DDS_RUV) <- formula( ",design_str," + ")
-    }
+    #if (opt_red==FALSE){
+    #  design_str <- paste0("design(",DDS_obj_str,") <- formula( ",design_str)
+    #}
     for (wi in factors_to_include){
       #add the wi as variables to DDS object: 
       #DDS_RUV$W1 <- RUV_factor_info$W1
-      eval(parse(text=paste0("DDS_RUV$",wi," <- RUV_factor_info$",wi,"[",sample_sel,"]")))
+      #eval(parse(text=paste0(DDS_obj_str,"$",wi," <- RUV_factor_info$",wi)))
       #build design formula
       #design(DDS_RUV) <- formula(~ W1 + W2 + ... + Group)
       if (opt_red==TRUE){
@@ -938,19 +929,23 @@ get_design_str = function(factors_to_include,sample_sel,opt_RUV,opt_red){
     if (opt_red==TRUE){
       design_str <- design_str
     } else{
-      design_str <- paste0("design(DDS) <- formula( ",design_str," + ")
+      design_str <- paste0("design(",DDS_obj_str,") <- formula( ",design_str)
     }
   }
   
   if (opt_red==FALSE){
-    design_str <- paste0(design_str," Group)")
+    design_str <- paste0(design_str," Group")
+  } else{
+    if (design_str == "~"){
+      design_str <- "~ 1"
+    }
   }
   
   return(design_str)
 }
 
 # integrate RUV factors in DDS objects colData
-integrate_RUV_factors_in_DDS_obj = function(DDS_RUV,set,D,dataset_half){
+integrate_RUV_factors_in_DDS_obj = function(DDS_RUV,set,idx_rnd,dataset_half){
   add_RUV_str_colData <- ''
   DDS_RUV_names <- names(DDS_RUV@colData@listData)
   if  (dataset_half=='none'){
@@ -959,19 +954,19 @@ integrate_RUV_factors_in_DDS_obj = function(DDS_RUV,set,D,dataset_half){
     str2 = ""
   }else if (dataset_half=='first'){
     RUV_names <- colnames(pData(set))
-    str1="[D$idx_rnd$first], "
-    str2="[D$idx_rnd$first]"
+    str1="[idx_rnd$first], "
+    str2="[idx_rnd$first]"
   }else if (dataset_half=='second'){
     RUV_names <- colnames(pData(set))
-    str1 = "[D$idx_rnd$second], "
-    str2 = "[D$idx_rnd$second]"
+    str1 = "[idx_rnd$second], "
+    str2 = "[idx_rnd$second]"
   }
   
   for (RUV_i in RUV_names){
     if (RUV_i != RUV_names[length(RUV_names)]){
-      add_RUV_str_colData <- paste0(paste0(paste0(paste0(add_RUV_str_colData,RUV_i),'=set$'),RUV_i),str1)
+      add_RUV_str_colData <- paste0(add_RUV_str_colData,RUV_i,'=set$',RUV_i,str1)
     } else{
-      add_RUV_str_colData <- paste0(paste0(paste0(paste0(add_RUV_str_colData,RUV_i),'=set$'),RUV_i),str2)
+      add_RUV_str_colData <- paste0(add_RUV_str_colData,RUV_i,'=set$',RUV_i,str2)
     }
     DDS_RUV_names <- c(DDS_RUV_names,RUV_i)
   }
@@ -1507,12 +1502,12 @@ plot_size_factors <- function(DDS,celltype,path_results,sfe_type,i) {
 #plot RUV analysis factors sorted by group
 plot_RUV_factors <- function(DDS,pData_set,celltype,path_results,variable_name,n_RUV_factors,i,opt_downsampled_data,i_ds) {
   if (opt_downsampled_data==TRUE){
-    file_ending <- paste0(i_ds,".png")
+    file_ending <- paste0(i_ds,".pdf")
   } else{
-    file_ending <- ".png"
+    file_ending <- ".pdf"
   }
-  filename <- paste0(paste(paste(path_results,"/RUV_factors_",variable_name,sep='_'),n_RUV_factors,sep='_'),file_ending)
-  png(file=filename,width=400, height=100, units='mm', res=300)
+  filename <- paste0(path_results,"/RUV_factors_",variable_name,n_RUV_factors,file_ending)
+  pdf(file=filename)
   if (dim(pData_set)[2]>4){
     par(mfrow=c(2,as.integer(ceiling(dim(pData_set)[2])/2)),mar=c(1,1,1,1)+3.5)
   }
@@ -1603,22 +1598,12 @@ visualize_metadata <- function(metadata,path_results){
   }
 }
 
-#upset plot of result
-visualize_MARS_result_as_upset <- function(vars_selected,path_results){
-  vars_selected_tibble <- as_tibble(vars_selected,rownames=NA)
-  #pdf(file=paste0(path_results,'vars_selected_by_MARS_upset.pdf'), paper="A4", onefile=FALSE)
-  #par(mfrow=c(1,1),mar=c(1,1,1,1)) 
-  upset(data=vars_selected_tibble,intersect=colnames(vars_selected_tibble))
-  #dev.off()
-  #graphics.off()
-  ggsave(paste0(path_results,'/vars_selected_by_MARS_upset.pdf'))
-}
-
 #visualize spearman correlation of logFC of data set halves for varying number of RUV factors
 visualize_RUV_grid_search<- function(M_cor,path_results){
+  browser()
   m<-colMeans(M_cor,na.rm=TRUE)
-  e_lower <- colQuantiles(M_cor,probs=0.05,na.rm=TRUE)
-  e_upper <- colQuantiles(M_cor,probs=0.95,na.rm=TRUE)
+  e_lower <- colQuantiles(M_cor,probs=0.05,na.rm=TRUE,useNames = FALSE)
+  e_upper <- colQuantiles(M_cor,probs=0.95,na.rm=TRUE,useNames = FALSE)
   n_RUVs<-colnames(M_cor)
   n_RUVs <- parse_number(n_RUVs)
   pdf(file=paste0(path_results,'/Optimal_RUV_factors.pdf'), paper="A4")
@@ -1691,7 +1676,7 @@ plot_RUV_var_fractions_per_gene = function(vp,path_res_RUV,n_RUV_factors, opt_do
   } else{
     file_ending <- ".pdf"
   }
-  filename <- paste0(paste0(paste0(path_res_RUV,"/RUV_factors_percent_bars_"),n_RUV_factors),file_ending)
+  filename <- paste0(path_res_RUV,"/RUV_factors_percent_bars_",n_RUV_factors,file_ending)
   pdf(file=filename)
   print(plotPercentBars(vp[1:10,]))
   dev.off()
@@ -1743,22 +1728,6 @@ save_results_all_genes <- function(RES,R,res,shrinkage_type,sfe_type,path_res,ce
     R <- get_significant_results(R,res,alpha_val,sfe_type,shrinkage_type,celltype)
   }
   return(list(R=R,RES=RES))
-}
-
-#export sfe normalized data in loom file for wilcoxon rank sum test
-export_sfe_normalized_data <- function(opt_export_sfe_normalized_data,DDS,path_data,countData_filenames,file_id){
-  if (opt_export_sfe_normalized_data==TRUE){
-    data_sfe_normalized <- counts(DDS)*t(replicate(dim(DDS)[1],DDS$sizeFactor))
-    new_filename <- paste0(paste0(path_data,str_split(countData_filenames[file_id],'.csv')[[1]][1]),"_sfe_normalized.loom")
-    row_attrs <- list(rownames(data_sfe_normalized))
-    names(row_attrs) <- c("gene_accession")
-    col_attrs <- list(colData(DDS)$donor_ID_python, colData(DDS)$Group)
-    names(col_attrs) <- c("Donor","Disease")
-    lfile <- create(new_filename, data_sfe_normalized)
-    lfile$add.attribute(row_attrs,1,TRUE) 
-    lfile$add.attribute(col_attrs,2,TRUE)
-    lfile$close_all()
-  }
 }
 
 #select pathways:
