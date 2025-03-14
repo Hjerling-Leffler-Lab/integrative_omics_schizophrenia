@@ -1,0 +1,141 @@
+---
+title: "05a_TWAS_plot"
+author: "Shuyang Yao (shuyang.yao@ki.se)"
+date: "2023-06-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Goal: plot TWAS results for 3CT and 15CT levels  
+  
+Format: signed -log10(P), use dashed line for Bonferroni threshold and color for FDR  
+  
+# 3 cell classes  
+```{r, eval=F}
+library(data.table)
+library(tidyverse)
+library(ggplot2)
+library(ggrepel)
+library(rstatix)
+
+#- specify cell type info and path
+MYOUTDIR="./10_TWAS/output/fig4J/"
+lvl="3CT"
+
+#- read genematrix for mapping gene name
+genemx <- fread("./workflow/geneMatrix.tsv") %>%
+  distinct(ensgid, gene_name)
+
+#- read TWAS output
+for(CT in c("Excitatory", "Inhibitory", "NonNEuronal")){
+  
+  MYWD=paste("./10_TWAS/data/TWAS_output/",lvl,"/",CT,"/cleaned_output/",sep="")
+  
+  #- read chromosome size data
+  chr.size <- fread("./workflow/chromInfo.hg19.tsv") %>%
+  filter(hg19g0 %in% paste0("chr", c(1:22))) %>%
+  mutate(chr=hg19g0) %>%
+  mutate(total_bp=as.numeric(size)) %>%
+  select(chr, total_bp)
+  
+  #- read TWAS data
+  a <- paste(MYWD,"allCHR_TWAS_",CT,".tsv",sep="")
+  df.twas <- fread(a) %>%
+    adjust_pvalue(p.col="Padj",output.col="FDR_fr_Padj", method="fdr") %>% # calculate fdr
+    left_join(genemx, by="ensgid")
+  
+  df.twas <- df.twas %>%
+    full_join(chr.size, by=c("hg19g0"="chr")) %>% # get chromosomal information 
+    mutate(chr_integer=as.integer(gsub("chr","",hg19g0))) %>%
+    group_by(chr_integer) %>%
+    summarise(chr_len=max(total_bp)) %>%
+    mutate(tot=cumsum(as.numeric(chr_len))-as.numeric(chr_len)) %>%
+    ungroup() %>%
+    mutate(hg19g0=paste("chr",chr_integer,sep="")) %>%
+    left_join(df.twas, by=c("hg19g0"))  %>%
+    mutate(Gene_TSS=g1+tot) %>%
+    mutate(sig.fdr=ifelse(FDR_fr_Padj<=0.05, "yes", "no")) %>%
+    mutate(sig.bonf=ifelse(Padj<=0.05/nrow(df.twas), "yes", "no")) %>%
+    mutate(color_cat=ifelse(sig.bonf=="yes","3",
+                            ifelse((chr_integer %% 2) == 0,"2","1")))%>%
+    mutate(color_cat_fdr=ifelse(sig.fdr=="yes","3",
+                                ifelse((chr_integer %% 2) == 0,"2","1"))) %>%
+    arrange(chr_integer, g1) %>%
+    filter(is.na(gene_name)==F)
+  
+  #- output
+  outfile=paste(MYOUTDIR,"df_3CT_",CT,"_TWAS_plot_fdr.tsv",sep="")
+  fwrite(df.twas, file=outfile, sep="\t", col.names = T)
+}
+
+```
+  
+# 16 cell types  
+```{r}
+library(data.table)
+library(tidyverse)
+library(ggplot2)
+library(ggrepel)
+library(rstatix)
+
+#- specify cell type info
+MYOUTDIR="./10_TWAS/output/figS15_16_17/"
+lvl="16CT"
+
+#- prepare color table
+library(readxl)
+df.color <- read_excel("./workflow/Cell_type_colors.xlsx") %>%
+  distinct(`Cell type (15)`, `Cell type (15) color`)
+colnames(df.color) <- c("CellType","CT_color")
+df.color$CellType <- gsub(" ", "_", df.color$CellType)
+
+#- loop over CT
+WD16=paste("./10_TWAS/data/TWAS_output/",lvl,sep="")
+setwd(WD16)
+CT_list <- list.files()
+gsub("cleaned_output","",CT_list)
+
+for(CT in CT_list){
+  if(CT%in%c("Astrocytes","Endothelial_and_mural_cells","Microglial_cells")){
+    print(paste("skip CT",CT, sep=" "))}else{
+  print(CT)
+  myCT_color=as.character(df.color %>% filter(CellType==CT) %>% select(CT_color))
+  
+  #- read TWAS data
+  a <- paste(WD16,"/cleaned_output/allCHR_TWAS_",CT,".tsv",sep="")
+  df.twas <- fread(a) %>%
+    adjust_pvalue(p.col="Padj",output.col="FDR_fr_Padj", method="fdr") %>% # calculate fdr
+    left_join(genemx, by="ensgid")
+  
+  #- prepare data for manhattan plot
+  df.twas <- df.twas %>%
+    full_join(chr.size, by=c("hg19g0"="chr")) %>%
+    mutate(chr_integer=as.integer(gsub("chr","",hg19g0))) %>%
+    group_by(chr_integer) %>%
+    summarise(chr_len=max(total_bp)) %>%
+    mutate(tot=cumsum(as.numeric(chr_len))-as.numeric(chr_len)) %>%
+    ungroup() %>%
+    mutate(hg19g0=paste("chr",chr_integer,sep="")) %>%
+    left_join(df.twas, by=c("hg19g0"))  %>%
+    mutate(Gene_TSS=g1+tot) %>%
+    mutate(sig=ifelse(FDR_fr_Padj<=0.05, "yes", "no")) %>%
+    mutate(sig.bonf=ifelse(Padj<=0.05/nrow(df.twas), "yes", "no")) %>%
+    mutate(color_cat_fdr=ifelse(sig=="yes","3",
+                            ifelse((chr_integer %% 2) == 0,"2","1")),
+           color_cat_bonf=ifelse(sig.bonf=="yes","3",
+                                 ifelse((chr_integer %% 2) == 0,"2","1")))%>%
+    arrange(chr_integer, g1) %>%
+    mutate(signedlogPadj=ifelse(X2_effectSize>=0, -log10(Padj), log10(Padj)))
+  
+  #- output
+  outfile=paste(MYOUTDIR,"df_16CT_",CT,"_TWAS_plot_fdr.tsv",sep="")
+  fwrite(df.twas, file=outfile, sep="\t", col.names = T)
+  }
+}
+
+```
+  
+--- end ---  

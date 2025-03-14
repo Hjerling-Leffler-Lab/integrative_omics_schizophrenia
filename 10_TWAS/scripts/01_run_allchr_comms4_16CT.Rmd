@@ -1,0 +1,127 @@
+---
+title: "CoMM_S4 TWAS 16 CT level"
+author: "Shuyang Yao (shuyang.yao@ki.se)"
+date: "2023-05-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+  
+Goal:  
+perform TWAS using CoMM-S4 (PMID 34616426), for eQTLs of 16 cell types.  
+  
+Steps:  
+1. prepare files  
+2. run analysis  
+3. check results  
+  
+Filters  
+1. eQTL: nominal-p<=0.1   
+2. SNPs: take only those overlaping between eQTL results and scz GWAS sumstats  
+3. Ref: HRC-EUR, remove INDEL  
+  
+set up  
+```{r, eval=F}
+library(devtools)
+install_github("gordonliu810822/CoMM")
+```
+  
+# format input files  
+eQTL input, filter for nominal p<0.1.  
+```{bash, eval=F}
+CelltypeList=(Astrocytes Endothelial_and_mural_cells Excitatory_Layer_2-3_IT_neurons_I Excitatory_Layer_2-3_IT_neurons_II Excitatory_Layer_3-4_IT_neurons Excitatory_Layer_3-6_IT_neurons Excitatory_Layer_5-6_CT_and_NP_neurons Excitatory_Layer_5-6_IT_neurons_I Excitatory_Layer_5-6_IT_neurons_II Inhibitory_LAMP5_neurons Inhibitory_PVALB_neurons Inhibitory_SST_neurons Inhibitory_VIP_neurons Microglial_cells Oligodendrocyte_progenitor_cells Oligodendrocytes)
+
+# working dir
+cd ./10_TWAS/scripts/
+
+for CT in $CelltypeList
+do
+sbatch --mem=3g -n 1 -t 01:00:00 --job-name=16CTeQTL_p0.1 02a_filter_SNPs_16CT.sh ${CT}
+done
+
+```
+  
+Take the union of eQTL SNPs (p<0.1) per CT per chr  
+```{bash, eval=F}
+cd ./10_TWAS/scripts/
+
+for i in {1..22}
+do
+ sbatch --mem=1g -n 1 -t 01:00:00 --job-name=16CTeQTLunion 02b_union_SNPs_16CT.sh ${i}
+done
+
+# run below when the loop above is finished
+cd ./10_TWAS/data/16CT
+for i in {1..22}
+do
+ cat eQTL_p0.1_SNP_union/tmp_16CT_union_chr${i}.eQTL_combined_p0.1.txt | sort | uniq | awk '{print $1,$2}' FS=":" | tr ' ' : > eQTL_p0.1_SNP_union/16CT_union_chr${i}.eQTL_combined_p0.1.txt
+done
+rm eQTL_p0.1_SNP_union/tmp*txt
+
+```
+  
+# map & filters in R  
+```{bash, eval=F}
+CelltypeList=(Astrocytes Endothelial_and_mural_cells Excitatory_Layer_2-3_IT_neurons_I Excitatory_Layer_2-3_IT_neurons_II Excitatory_Layer_3-4_IT_neurons Excitatory_Layer_3-6_IT_neurons Excitatory_Layer_5-6_CT_and_NP_neurons Excitatory_Layer_5-6_IT_neurons_I Excitatory_Layer_5-6_IT_neurons_II Inhibitory_LAMP5_neurons Inhibitory_PVALB_neurons Inhibitory_SST_neurons Inhibitory_VIP_neurons Microglial_cells Oligodendrocyte_progenitor_cells Oligodendrocytes)
+
+# get the union of SNPs per CT per chr
+cd /nas/depts/007/sullilab/projects/snrnaseq/data/eQTL/comms4/scripts/
+module load r/4.1.0
+
+for CT in $CelltypeList
+do
+echo ${CT}
+sbatch -p general --mem=16g -n 1 -t 02:30:00 --job-name=00inputfiles --wrap="Rscript 02c_prepare_input_1_2_4_16CT ${CT}" --error=${CT}_02c_prepare_input_1_2_4_16CT.R.error
+done
+
+```
+  
+Prepare input file 3 (and 5): Intersect with only eQTL SNP list  
+```{bash, eval=F}
+# specify level
+lvl=16CT
+
+#module load plink
+module load plink/1.90b3 #same as default
+
+# restricted to eQTL p<0.1 SNPs
+INDIR=./workflow/REF/ # folder with HRC bfiles (HRC.r1-1.EGA.GRCh37.noATCG.nomhc.*), filter out ambiguous SNPs and SNPs in extended MHC region 
+OUTDIR=./workflow/REF/perCHR_${lvl}_eqtlp0.1
+SNPLISTDIR=./10_TWAS/data/snp_list_perCHR_${lvl}
+
+mkdir ${OUTDIR}
+cd ${OUTDIR}
+
+# run intersection of SNPs in reference data
+for i in {1..22}
+do
+plink --bfile ${INDIR}/HRC.r1-1.EGA.GRCh37.noATCG.nomhc --snps-only --chr ${i} --extract ${SNPLISTDIR}/snp.list_eQTLp0.1_chr${i} --make-bed --out ${OUTDIR}/HRC.r1-1.EGA.GRCh37.noATCG.nomhc_eqtlp0.1_chr${i}
+done
+
+```
+  
+# Run CoMM-S4  
+loop over cell type list  
+```{bash, eval=F}
+# full Celltype list:
+CelltypeList=(Astrocytes Endothelial_and_mural_cells Excitatory_Layer_2-3_IT_neurons_I Excitatory_Layer_2-3_IT_neurons_II Excitatory_Layer_3-4_IT_neurons Excitatory_Layer_3-6_IT_neurons Excitatory_Layer_5-6_CT_and_NP_neurons Excitatory_Layer_5-6_IT_neurons_I Excitatory_Layer_5-6_IT_neurons_II Inhibitory_LAMP5_neurons Inhibitory_PVALB_neurons Inhibitory_SST_neurons Inhibitory_VIP_neurons Microglial_cells Oligodendrocyte_progenitor_cells Oligodendrocytes)
+
+module load r/4.1.0
+lvl=16CT
+WDIR=./10_TWAS/
+NCORE=8
+cd ${WDIR}/scripts
+
+for CT in ${CelltypeList[@]}
+do
+  for i in {1..22}
+  do
+  sbatch --mem=80g -n ${NCORE} -t 1:00:00 --job-name=c4CHR${i} --output=${MYWD}/log/${lvl}/${CT}_chr${i}_03_run_comms4.R.out --error=${MYWD}/log/${lvl}/${CT}_chr${i}_03_run_comms4.R.error --wrap="Rscript 03_run_comms4.R ${i} ${CT} ${lvl} ${NCORE}"
+  done
+done
+
+```
+  
+-- end --  

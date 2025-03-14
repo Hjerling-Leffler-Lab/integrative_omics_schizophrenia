@@ -1,0 +1,127 @@
+---
+title: "CoMM_S4 TWAS"
+author: "Shuyang Yao (shuyang.yao@ki.se)"
+date: "2023-05-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+  
+Goal:  
+perform TWAS using CoMM-S4 (PMID 34616426), for eQTLs of 3 cell classes.  
+  
+Steps:  
+1. prepare files  
+2. run analysis  
+3. check results  
+  
+Filters  
+1. eQTL: nominal-p<=0.1   
+2. SNPs: take only those overlaping between eQTL results and scz GWAS sumstats  
+3. Ref: HRC-EUR, remove INDEL  
+  
+set up  
+```{r, eval=F}
+library(devtools)
+install_github("gordonliu810822/CoMM")
+```
+  
+# format input files  
+eQTL input, filter for nominal p≤0.1  
+```{bash, eval=F}
+#= working dir
+OUTDIR=./10_TWAS/data/ # path to folder for filtered SNPs
+
+#- file1: eQTL sumstats: SNP, Gene, beta, se (tab delimited)
+for CT in Excitatory Inhibitory NonNeuronal
+do
+  INDIR= # path to folder with full eQTL summary statistics: ${CT}_all.chr.eQTL_combined.txt
+  for i in {1..22}
+  do
+    cat ${INDIR}/${CT}_all.chr.eQTL_combined.txt | grep "chr$i\s\+" | awk '$12<=0.1{print $8,$1,$14,$15}' OFS='\t'  > ${OUTDIR}/3CT/${CT}/${CT}_chr${i}.eQTL_combined_p0.1.txt
+  done
+done
+
+#- file2: gwas sumstats: SNP, chr (only number), BP, A1, A2, beta, se (tab delimited)
+INP=PGC3_SCZ_wave3.european.autosome.public.v3.novcfheader.tsv.gz # path to SCZ GWAS (PMID 35396580)
+zcat ${INP} | awk '{print $2,$1,$3,$4,$5,$9,$10}' OFS='\t' > ${OUTDIR}/gwas_sumstats_scz2022.txt
+
+#- get the union of SNPs across cell types, per chr
+cd ${OUTDIR}/3CT
+mkdir eQTL_p0.1_SNP_union
+
+for i in {1..22}
+do
+cat Excitatory/Excitatory_chr${i}.eQTL_combined_p0.1.txt Inhibitory/Inhibitory_chr${i}.eQTL_combined_p0.1.txt NonNeuronal/NonNeuronal_chr${i}.eQTL_combined_p0.1.txt | awk '{print $1}' | sort | uniq | awk '{print $1,$2}' FS=":" | tr ' ' : > eQTL_p0.1_SNP_union/3CT_union_chr${i}.eQTL_combined_p0.1.txt
+done
+
+```
+  
+Prepare input files 1 and 4  
+```{bash, eval=F}
+MYWD=./10_TWAS/scripts/
+cd ${MYWD}
+module load r/4.1.0
+sbatch -p general --mem=10g -n 1 -t 01:00:00 --job-name=EX_INP1_4 --wrap="Rscript 02_prepare_3CT_input_1_4.R Excitatory"
+sbatch -p general --mem=10g -n 1 -t 01:00:00 --job-name=IN_INP1_4 --wrap="Rscript 02_prepare_3CT_input_1_4.R Inhibitory"
+sbatch -p general --mem=10g -n 1 -t 01:00:00 --job-name=NN_INP1_4 --wrap="Rscript 02_prepare_3CT_input_1_4.R NonNeuronal"
+
+```
+  
+Prepare input file 2:  
+Take the intersection SNPs of the GWAS and the eQTL p≤0.1 SNPs (union of 3 cell classes)  
+```{bash, eval=F}
+MYWD=./10_TWAS/scripts/
+cd ${MYWD}
+module load r/4.1.0
+sbatch -p general --mem=10g -n 1 -t 02:00:00 --job-name=INP2 --wrap="Rscript 02_prepare_3CT_input_2.R"
+```
+  
+Prepare input file 3  
+bfiles of HRC with the eQTL p≤0.1 SNPs
+```{bash, eval=F}
+# specify level
+lvl=3CT
+
+module load plink/1.90b3 #same as default
+
+# filter for eQTL p≤0.1 SNPs
+INDIR=./workflow/REF/ # folder with HRC bfiles (HRC.r1-1.EGA.GRCh37.noATCG.nomhc.*), filter out ambiguous SNPs and SNPs in extended MHC region 
+OUTDIR=./workflow/REF/perCHR_${lvl}_eqtlp0.1
+SNPLISTDIR=./10_TWAS/data/snp_list_perCHR_${lvl}
+
+mkdir ${OUTDIR}
+cd ${OUTDIR}
+
+# run intersection of SNPs in reference data
+for i in {1..22}
+do
+plink --bfile ${INDIR}/HRC.r1-1.EGA.GRCh37.noATCG.nomhc --snps-only --chr ${i} --extract ${SNPLISTDIR}/snp.list_eQTLp0.1_chr${i} --make-bed --out ${OUTDIR}/HRC.r1-1.EGA.GRCh37.noATCG.nomhc_eqtlp0.1_chr${i}
+done
+
+```
+  
+# Run CoMM-S4  
+```{bash, eval=F}
+# update 240429
+module load r/4.1.0
+
+lvl=3CT
+MYWD=./10_TWAS/
+cd ${MYWD}/scripts
+NCORE=8
+
+# note: adjust --mem according to the size of each chromosome, can vary between 30 to 200g.
+for CT in Excitatory Inhibitory NonNeuronal
+do
+  for i in {1..22}
+  do
+  sbatch --mem=80g -n ${NCORE} -t 1:00:00 --job-name=c4CHR${i} --output=${MYWD}/log/${lvl}/${CT}_chr${i}_03_run_comms4.R.out --error=${MYWD}/log/${lvl}/${CT}_chr${i}_03_run_comms4.R.error --wrap="Rscript 03_run_comms4.R ${i} ${CT} ${lvl} ${NCORE}"
+  done
+done
+
+```
+  
+-- end --  
