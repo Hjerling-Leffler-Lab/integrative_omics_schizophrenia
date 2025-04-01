@@ -121,10 +121,8 @@ get_metadata <- function(data_all, paths, filename_data_sample_info, filename_da
     add_str_scaled_and_centered <- ""
   }
   if (opt_load_metadata==FALSE){
-
     #vars to add: donor_ID_universal, donor_ID_internal_6, donor_ID_internal_8, pH_of_CSF, source 
-    vars_of_interest <- c("donor_ID_universal","donor_ID_internal_8","genotype_IID","source","gender","age","antipsychotics", "mood_stabilizers","anti_depressants","health_status","drugs_of_abuse","nicotine_dependance","alcohol_dependance")
-    data_sample_info <- read_excel(paste0(paths$sample_info_data,filename_data_sample_info), sheet = "basic_donor_information",col_names = TRUE)[,vars_of_interest]#3,7,9,10,11)]
+    data_sample_info <- read_excel(paste0(paths$sample_info_data,filename_data_sample_info), sheet = "basic_donor_information",col_names = TRUE)[,c("donor_ID_universal","donor_ID_internal_8","genotype_IID","source","gender","age")]#3,7,9,10,11)]
     
 
     bool_keep <- data_sample_info$donor_ID_internal_8 %in% data_all$colData$donor_ID_python
@@ -203,13 +201,6 @@ get_metadata <- function(data_all, paths, filename_data_sample_info, filename_da
     
     metadata_imputed$Library <- as.factor(metadata_imputed$Library)
     metadata_imputed$Sex <- as.factor(metadata_imputed$Sex)
-    metadata_imputed$antipsychotics <- as.factor(metadata_imputed$antipsychotics)
-    metadata_imputed$mood_stabilizers <- as.factor(metadata_imputed$mood_stabilizers )
-    metadata_imputed$anti_depressants <- as.factor(metadata_imputed$anti_depressants)
-    metadata_imputed$health_status <- as.factor(metadata_imputed$health_status)
-    metadata_imputed$drugs_of_abuse <- as.factor(metadata_imputed$drugs_of_abuse)
-    metadata_imputed$nicotine_dependance <- as.factor(metadata_imputed$nicotine_dependance)
-    metadata_imputed$alcohol_dependance <- as.factor(metadata_imputed$alcohol_dependance)
     
     #if necessary scale and center metadata
     if (opt_scale_and_center_metadata==TRUE){
@@ -378,7 +369,7 @@ plot_RUV_factor_correlation_with_metadata <- function(RUV_factors,metadata,resul
   
   #categorical variables:
   browser()
-  var_cat <- c("Group","source","Sex","Library","antipsychotics", "mood_stabilizers","anti_depressants","health_status","drugs_of_abuse","nicotine_dependance","alcohol_dependance") #"ancestry_european"
+  var_cat <- c("Group","source","Sex","Library") #"ancestry_european"
   m <- length(var_cat)
   p <- list()
   for (f_id in seq(1,n)){

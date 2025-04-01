@@ -1249,3 +1249,4 @@ def print_stats_volcano(DEGs_filtered,term):
         print("Percentage of pw genes are down DEGs:"+str(np.sum(np.logical_and(DEGs_filtered["padj"]<=0.3,DEGs_filtered["log2FoldChange"]<0))/(len(DEGs_filtered["Gene_short"].unique())*len(DEGs_filtered["celltype"].unique()))))
         print("number of up DEGs:"+str(np.sum(np.logical_and(DEGs_filtered["padj"]<=0.3,DEGs_filtered["log2FoldChange"]>0))))
         print("Percentage of pw genes are up DEGs:"+str(np.sum(np.logical_and(DEGs_filtered["padj"]<=0.3,DEGs_filtered["log2FoldChange"]>0))/(len(DEGs_filtered["Gene_short"].unique())*len(DEGs_filtered["celltype"].unique()))))
+

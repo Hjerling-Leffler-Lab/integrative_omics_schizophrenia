@@ -129,3 +129,4 @@ MCG_f, CPG_f, min_CPG_f, GPC_f, CPC_f, sCPC_f, usCPC_f, MCPC_f, PMito_f, RCPC_f,
 if opt_plot_filtered_data==True:
     ut.plot_data(PD, PD_updated, TH_min_number_counts, TH_min_number_s_counts, TH_min_number_us_counts, TH_max_fraction_mito_counts, TH_min_number_genes, TH_min_cells_per_sample, path_project, path_summary_metrics, opt_TH_filtered, opt_doublets_removed, opt_manual_doublet_TH_adjustment, opt_stats_filt_data, opt_save, opt_D_version, opt_pagoda_filtering)   
     ut.plot_expression_PCA('_TH_and_D_adj_filtered.loom',file_str1,file_str2,opt_violin_plots,opt_spearman_corr_with_QC_metrics,path_data_filt,path_results_filt)
+

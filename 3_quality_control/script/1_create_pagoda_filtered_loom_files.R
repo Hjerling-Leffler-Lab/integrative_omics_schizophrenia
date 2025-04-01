@@ -1,3 +1,4 @@
+
 #author: Lisa Bast, rewritten from loaddata_filtered.R and pagoda_filtering.R (author: José A. Martínez López)
 #date: 24.09.2021
 #version: 0.0.2

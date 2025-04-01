@@ -163,6 +163,3 @@ for (file in files){
 	dev.off()
 }
 
-
-
-

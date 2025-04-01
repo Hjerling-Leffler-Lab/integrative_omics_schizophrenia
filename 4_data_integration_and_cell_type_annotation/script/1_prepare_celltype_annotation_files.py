@@ -1,3 +1,4 @@
+
 # prepare files for cell type annotation based on filtered scRNAseq/ snRNAseq data
 # Created on Wed Nov 11 12:48:51 2020
 # @author: Lisa Bast
@@ -146,5 +147,6 @@ if opt_format_refData:
     test_data_filename = "Samples"+add_str+"_TH_and_D_adj_filtered.loom"
     for n_g in n_genes:
         ut.format_ref_data(path_project, ref_data_set, ref_data_set_short, opt_num_CT_clusters, opt_all_genes, red_method, test_data_path, test_data_filename, IDs_cell_sel, samples_selected, opt_ref_data_as_query_data, n_g)
+
 
         

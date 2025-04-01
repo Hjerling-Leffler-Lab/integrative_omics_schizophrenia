@@ -1,3 +1,4 @@
+
 #author: Lisa Bast
 #date: 12.10.2020
 #about visualization of quality metrics for SCz-CTRL snRNAseq data set, Fig. S1 E,F
@@ -55,4 +56,5 @@ plot_correlation_of_metrics(metrics, selected_cols,path_results,fig_str,"spearma
 plot_correlation_of_metrics(metrics, selected_cols,path_results,fig_str,"pearson",FALSE)
 plot_pearson_vs_spearman_correlation(metrics,selected_cols,path_results,fig_str)
 plot_PCA_of_samples(metrics,selected_cols,path_results,TRUE,TRUE,"Group")
+
 

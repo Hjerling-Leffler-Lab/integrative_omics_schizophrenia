@@ -10,3 +10,4 @@ The preprint is available through [MedRxiv](https://www.medrxiv.org/content/10.1
 * The numbering in folder and file names indicate in which order to run the code. 
 * The software_info.xlsx file contains software and package version information for respective code folders.
 * Alternatively, the singularity_scRNAseq_SCZ_CTRL_310124.def can be used to build and use a singularity container.
+

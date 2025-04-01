@@ -1,3 +1,4 @@
+
 #! /bin/bash -l
 #SBATCH -A snic2021-22-317
 #SBATCH -p node -n 16
@@ -12,4 +13,3 @@ path_data=/1_demultiplexing/data/
 path_cr=/tools/cellranger-6.0.1/
 
 ${path_cr}cellranger mkfastq --run=${path_data}200324_A00621_0200_BH77MCDSXY/ --csv=samplesID_LIB10x2.csv --output-dir=/1_demultiplexing/output/library_2/
-

@@ -90,3 +90,4 @@ for mode in modes:
             df = pd.DataFrame(module_list_ordered, columns = ["module"])
             df.to_csv(path_module_genes+"modules_ordered_"+opt_test_DEM+".csv")
 
+

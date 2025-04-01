@@ -171,4 +171,3 @@ saveRDS(plot17,file=paste0(results_path,"plot17.rds"))
 #heatmapplot<-plotDEheatmap(con,con$clusters$leiden$groups,de.info,n.genes.per.cluster=5,row.label.font.size=7)
 #saveRDS(heatmapplot,file="heatm#ap_plot.rds")
 
-

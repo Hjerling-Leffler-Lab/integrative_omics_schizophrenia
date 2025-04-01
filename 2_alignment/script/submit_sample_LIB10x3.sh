@@ -1,3 +1,4 @@
+
 #! /bin/bash -l
 #SBATCH -A snic2021-22-317
 #SBATCH -p node -n 16
@@ -14,5 +15,4 @@ path_fastq=/1_demultiplexing/output/library_3/H5YV2DSXY/
 
 iden=$1
 ${path_cr}cellranger count --id="Counts_${iden}" --transcriptome=${path_ref}refdata-gex-GRCh38-2020-A --fastqs ${path_fastq}outs/fastq_path/ --sample $1 --expect-cells 5000 --include-introns --outputs-dir /2_alignment/output/
-
 

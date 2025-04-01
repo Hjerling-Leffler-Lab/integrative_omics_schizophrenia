@@ -29,4 +29,5 @@ DF_BM_genes_mito = DF_BM_genes[DF_BM_genes["category"]=="Mitochondria/ ATP synth
 DF_BM_genes_mito = ut.get_short_CT_names(DF_BM_genes_mito,"Celltype_Module")
 ut.plot_number_nuclear_mito_and_mito_genes_per_bordeaux_module(DF_BM_genes_mito[["gene_name","Celltype_Module_short"]],path_project_main+"/output/")
 all_mito_pw_genes = DF_BM_genes_mito["gene_name"].unique()
+
 all_mito_pw_genes.tofile(path_project_main+"/output/"+"all_nuclear_and_mitochondrial_genes_of_bordeaux_modules.csv",sep=",")

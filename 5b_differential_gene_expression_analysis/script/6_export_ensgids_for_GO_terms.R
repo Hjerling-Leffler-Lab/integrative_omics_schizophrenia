@@ -30,3 +30,4 @@ search_term_IDs_BP <- c("GO:0030182","GO:0006955")
 
 save_GO_ensgids(df_CC,search_terms_CC,search_term_IDs_CC,"CC")
 save_GO_ensgids(df_BP,search_terms_BP,search_term_IDs_BP,"BP")
+

@@ -107,14 +107,10 @@ def create_aggregated_data(path_results,path_main,path_data,ct_loom_filename,opt
     os.chdir(current_path)
 
 ### get functions:
-def get_paths(path_project,opt_results_path,opt_aggregate_across):
+def get_paths(path_project,opt_results_path):
     if opt_results_path=='DEG_ana_preparation':
-        if opt_aggregate_across=="cell types":
-            path_data = path_project + "/4_data_integration_and_cell_type_annotation/output/CT_specific_files/"
-            path_results = path_project + '/5b_differential_gene_expression_analysis/output/CT_clustered_aggregated_data/'
-        if opt_aggregate_across=="all":
-            path_data = path_project + '/4_data_integration_and_cell_type_annotation/output/'
-            path_results = path_project + '/5b_differential_gene_expression_analysis/output/aggregated_data/'
+        path_data = path_project + "/4_data_integration_and_cell_type_annotation/output/CT_specific_files/"
+        path_results = path_project + '/5b_differential_gene_expression_analysis/output/CT_clustered_aggregated_data/'
     elif opt_results_path.startswith('DEG_visualization'):
         path_results = path_project + '/5b_differential_gene_expression_analysis/output/DEGs/'
         path_data = path_project + '/5b_differential_gene_expression_analysis/data/CT_clustered_aggregated_data/'
@@ -3929,4 +3925,5 @@ def dec_to_rgb(rgb_tuple_dec):
     g = rgb_tuple_dec[2]*255.0
     return (r,b,g)
     #https://stackoverflow.com/questions/25404998/how-can-i-convert-an-rgb-input-into-a-decimal-color-code
+
     #return (r << 16) + (g << 8) + b

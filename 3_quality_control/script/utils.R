@@ -1,3 +1,4 @@
+
 #author: Lisa Bast
 #date: 24.09.2021
 #save dataframe from pagoda as loom file
@@ -163,3 +164,4 @@ plot_pearson_vs_spearman_correlation <- function(metrics,selected_cols,path_resu
   ) + theme(legend.position = "bottom")
   dev.off()
 }
+

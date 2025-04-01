@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 #Created on Wed Jun  3 14:38:41 2020
 #@author: Lisa Bast
@@ -2192,4 +2193,5 @@ def loadPltSettings(fontSize,markerSize):
     #remove frame
     #plt.rcParams['axes.spines.right'] = False
     #plt.rcParams['axes.spines.top'] = False
+
     return plt

@@ -26,3 +26,4 @@ settings <- get_settings_for_input_data(opt_input_data)
 p_val_cutoff <- 0.05 # for pathway analysis
 
 run_pathway_clustering_with_rrvgo(opt_input_data, settings, main_path,p_val_cutoff)
+

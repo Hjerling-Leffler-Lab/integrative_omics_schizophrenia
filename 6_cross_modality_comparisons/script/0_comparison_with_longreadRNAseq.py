@@ -121,3 +121,4 @@ DF_CT.drop(columns=["CT_long","index"],inplace=True)
 DF_CT["Celltype"] = DF_CT["Celltype"].str.replace("_"," ")
 
 ut1.plot_common_pathway_stats_per_CT(DF_CT, "longread RNAseq",path_longread+'pathway_comparison/')
+

@@ -183,6 +183,3 @@ for (opt_test in test_options){
   )
 }
 
-
-
-

@@ -159,3 +159,4 @@ for opt_visualize_pvalue in [True,False]:
 DEG_MT = ut.get_MT_genes_from_DEG_and_DAP(path_DEG_result,DEG_filename,path_results_proteomics_DAPs,filename_proteomics_DAPs,hgnc_file,path_filtered_data)
 #plot Figure S22B
 ut.plot_MT_genes_log2FC_per_CT(DEG_MT,results_path)
+

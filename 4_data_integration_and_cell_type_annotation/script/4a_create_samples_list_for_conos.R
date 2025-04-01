@@ -85,12 +85,3 @@ saveRDS(scmap_score_51CT,file = "scmap_score_51CT.rds")
 saveRDS(scmap_score_76CT,file = "scmap_score_76CT.rds")
 
 
-
-
-
-
-
-
-
-
-

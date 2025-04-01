@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 # extract 10X summary metrics from each library and sample and save in one file
 # date: Fri Oct  9 12:48:39 2020
@@ -29,4 +30,5 @@ for l_id, lib in enumerate(library_nr):
 
 os.chdir(path1)
 df_all.to_csv(path1+'metrics_summary_concatenated.csv',index=False)
+
  
