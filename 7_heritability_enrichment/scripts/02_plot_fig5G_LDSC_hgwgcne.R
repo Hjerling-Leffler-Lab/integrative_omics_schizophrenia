@@ -1,4 +1,8 @@
-# 04a_LDSC_2ModuleBlocks_enrichment.R
+# 02_plot_fig5G_LDSC_hgwgcne.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-06-16
+# aim: plot figure 5G
+
 library(data.table)
 library(tidyverse)
 library(ggplot2)
@@ -17,18 +21,8 @@ p1 <- ggplot(df %>% filter(`Prop._SNPs`>0.01),
   theme_classic() +
   xlab("") + ylab("LDSC enrichment (95% CI)")
 
-p2 <- ggplot(df,
-              aes(x=reorder(module_shortnames,-order), y=, `Prop._SNPs`, fill=as.character(if.EnrichmentFDR.05)))+
-  geom_bar(stat="identity") +
-  coord_flip() +
-  scale_fill_manual(values=c("grey","salmon"), name="FDR sig.", labels=c("no","yes")) +
-  theme_classic() +
-  xlab("") +
-  geom_hline(yintercept = 0.01, linetype="dashed", color="black") 
-
 ggsave(p1,
-       filename="Fig5e.LDSC_enrichment.pdf",
+       filename="Fig5G.LDSC_enrichment.pdf",
        width = 4, height = 4)
-ggsave(p2,
-       filename="FigS20a.LDSC_module_size.pdf",
-       width = 4, height = 4)
+
+#--- end ---#

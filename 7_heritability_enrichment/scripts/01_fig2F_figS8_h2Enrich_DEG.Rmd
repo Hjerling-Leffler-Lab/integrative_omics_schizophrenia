@@ -1,0 +1,182 @@
+---
+title: "01_fig2G_figS7_h2Enrich_DEG"
+author: Shuyang Yao (shuyang.yao@ki.se)
+output: html_document
+date: "2024-09-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Purpose: perform h2 enrichment analysis for deciles of up- and down-regulated genes per cell type.  
+Steps:  
+1. Define deciles of up- and down-regulated genes per cell type.  
+2. run h2 enrichment analysis.  
+3. clean results.  
+  
+1. Define deciles of up- and down-regulated genes per cell type.  
+```{r}
+library(data.table)
+library(tidyverse)
+
+# paths
+OUT0 <- "./7_heritability_enrichment/data/Pipeline_DEG/"
+inpath1 <- "./workflow/T7_DEGs_per_cell_type.csv" # DEG result table
+inpath2 <- "./workflow/geneMatrix.tsv.gz" # gene matrix
+
+# DEG results
+deg.df <- fread(inpath1) %>%
+  separate(col=Gene, into=c("v1","ensgid"),sep="_") %>%
+  select(ensgid, log2FoldChange, padj, celltype) %>%
+  mutate(signed_padj=sign(log2FoldChange)*padj)
+
+# gene coordinate, hg19
+geneMx <- fread(inpath2) %>%
+  filter(PAR=="FALSE",
+         !hg19g0%in%c("chrX","chrY","chrM",""),
+         is.na(hg19g0)==F,
+         is.na(g1)==F,
+         is.na(g2)==F) %>%
+  mutate(chr=hg19g0,
+         start=as.integer(ifelse(((g1-100000)<0),0,(g1-100000))),
+         end=as.integer(g2+100000) ) %>%
+  select(ensgid, chr, start, end)
+
+#- loop over cell type, loop over decile number, 
+# output: one .bed file per decile per cell type.
+
+# loop over cell type
+CT <- unique(deg.df$celltype)
+for(i in 1: length(CT)){
+  CTi=CT[i]
+  dfi <- deg.df %>% 
+    filter(celltype==CTi) 
+  print(CTi)
+
+  dfi2 <- dfi %>%
+    filter(is.na(padj)==F) %>%
+    inner_join(geneMx, by="ensgid")%>%
+    filter(chr!="")
+  print(nrow(dfi2))
+  
+  n_keep=round(0.05*nrow(dfi2))
+  
+  # loop over deciles
+  for(m in 1:10){
+    dfi_down <- dfi2 %>%
+      filter(signed_padj<0)  %>%
+      arrange(-signed_padj) %>%
+      slice((n_keep*(m-1)+1):(n_keep*m)) %>%
+      select(chr, start, end, signed_padj, ensgid) 
+    dfi_up <- dfi2 %>%
+      filter(signed_padj>0)  %>%
+      arrange(signed_padj) %>%
+      slice((n_keep*(m-1)+1):(n_keep*m)) %>%
+      select(chr, start, end, signed_padj, ensgid)
+    
+    OUT1 <- paste(OUT0,"degDecile_",m,"-",sep="")
+    filedown <- paste("down_",CTi,".bed",sep="")
+    fileup <- paste("up_",CTi,".bed",sep="")
+    if(nrow(dfi_down)>=1){fwrite(dfi_down, 
+           file = paste(OUT1,filedown,sep=""),
+           sep="\t", col.names=F)}
+    if(nrow(dfi_up)>=1){fwrite(dfi_up, 
+           file = paste(OUT1,fileup,sep=""),
+           sep="\t", col.names=F)}
+  }
+}
+
+```
+  
+2. run h2 enrichment analysis.  
+```{bash}
+SCRIPTS_DIR=./7_heritability_enrichment/scripts
+PIPELINE=Pipeline_DEG
+MAIN_DIR=./7_heritability_enrichment/data
+
+cd ${MAIN_DIR}/${PIPELINE}
+
+#- 1. calculate LD
+sbatch -o ${MAIN_DIR}/${PIPELINE}/LOG_01a_LDSC_calculate_LD.log \
+    -n 1 -t 01:00:00 --mem=16g \
+    ${SCRIPTS_DIR}/01a_pLDSC_calculate_LD.sh ${PIPELINE}
+
+#- 2. partition heritability (run when step 1 finishes)
+sbatch -o ${MAIN_DIR}/${PIPELINE}/LOG_01b_LDSC_partition_h2.log \
+    -n 1 -t 01:00:00 --mem=16g \
+    ${SCRIPTS_DIR}/01b_pLDSC_partition_h2.sh ${PIPELINE}
+
+```
+  
+3. clean results  
+```{r}
+library(tidyverse)
+library(data.table)
+library(rstatix)
+library(readxl)
+
+inpath <- "./7_heritability_enrichment/data/Pipeline_DEG/Results"
+pathcolor <- "./workflow/Cell_type_colors.xlsx"
+outpath1 <- "./7_heritability_enrichment/output/figS17/"
+outpath2 <- "./7_heritability_enrichment/output/fig2G/"
+
+myfun.ldsc <- function(a){
+  files <- list.files(a,pattern=".results",full.names = TRUE)
+  d <- data_frame(filename=files) %>% mutate(file_contents = map(filename,read_tsv)) %>%
+    mutate(V1=gsub("scz2022_other_SUN_degDecile_","",basename(filename))
+    ) %>% unnest() %>%
+    filter(Category=="L2_1") %>% mutate(P=1-pnorm(`Coefficient_z-score`)) %>% 
+    mutate(V1=gsub("\\.results","",V1),
+           Trait="scz2022") %>%
+    select(Trait,everything())
+  return(d)
+}
+
+#- format and account for multiple-testing within each decile across cell types
+mydf1 <- myfun.ldsc(inpath) %>%
+  select(-filename, -Category) %>%
+  mutate(Decile=case_when(
+    substr(V1,1,2)=="1-" ~ 1,
+    substr(V1,1,2)=="2-" ~ 2,
+    substr(V1,1,2)=="3-" ~ 3,
+    substr(V1,1,2)=="4-" ~ 4,
+    substr(V1,1,2)=="5-" ~ 5,
+    substr(V1,1,2)=="6-" ~ 6,
+    substr(V1,1,2)=="7-" ~ 7,
+    substr(V1,1,2)=="8-" ~ 8,
+    substr(V1,1,2)=="9-" ~ 9,
+    substr(V1,1,3)=="10-" ~ 10),
+    V2=sub("^.*?\\-", "", V1)) %>%
+  mutate(up_down=ifelse(substr(V2, 1,3)=="up_","up","down"),
+         CT=sub("^.*?\\_", "", V1)) %>%
+  group_by(Decile) %>%
+  adjust_pvalue(p.col="P", output.col="FDR", method="fdr") %>%
+  mutate(if.sig.fdr=ifelse(FDR<=0.05, "yes","no")) %>%
+  select(CT, Decile, FDR, if.sig.fdr, everything()) %>% select(-V1, -V2)
+
+mydf1$CT1 <- gsub("Excitatory_Layer_","Exc L ",mydf1$CT)
+mydf1$CT1 <- gsub("Inhibitory_","Inh ",mydf1$CT1)
+mydf1$CT1 <- gsub("_neurons","",mydf1$CT1)
+mydf1$CT1 <- gsub("Endothelial_and_mural_cells","Endothelial/mural",mydf1$CT1)
+mydf1$CT1 <- gsub("Oligodendrocyte_progenitor_cells","OPC",mydf1$CT1)
+mydf1$CT1 <- gsub("_and_","/",mydf1$CT1)
+mydf1$CT1 <- gsub("_"," ",mydf1$CT1)
+
+#- get colors
+df.color <- read_excel(pathcolor) %>%
+  distinct(`Cell type (15)`, `Cell type (15) color`) %>%
+  rename(CT=`Cell type (15)`,
+         ct_color=`Cell type (15) color`)
+df.color$CT=gsub(" ","_",df.color$CT)
+
+#- output
+fwrite(mydf1,
+       file=paste(outpath1,"df_figS17_DEG_Deciles_16CT.tsv",sep=""),
+       sep="\t", col.names = T)
+fwrite(mydf1 %>% filter(Decile==1) %>% select(CT, CT1, up_down, P, FDR, if.sig.fdr),
+       file=paste(outpath2,"df_fig2G_h2TopDEG_16CT.tsv",sep=""),
+       sep="\t", col.names = T)
+```
+  
+-- end --  

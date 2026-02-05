@@ -1,6 +1,8 @@
 #!/bin/bash 
 
 #- name: 01a_pLDSC_calculateLD.sh
+#- author: Shuyang Yao (shuyang.yao@ki.se)
+#- date: 2024-10-08
 #- aim: run partitioned LDSC for different annotations.
 #- tool: ldsc (https://github.com/bulik/ldsc)
 #- specify $1: the pipeline folder for the annotaitons (e.g., Pipeline_DEG, Pipeline_Specificity, Pipeline_modules)
