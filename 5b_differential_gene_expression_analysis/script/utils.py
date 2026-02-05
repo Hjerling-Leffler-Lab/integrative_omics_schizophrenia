@@ -117,7 +117,7 @@ def get_paths(path_project,opt_results_path,opt_aggregate_across):
             path_results = path_project + '/5b_differential_gene_expression_analysis/output/aggregated_data/'
     elif opt_results_path.startswith('DEG_visualization'):
         path_results = path_project + '/5b_differential_gene_expression_analysis/output/DEGs/'
-        path_data = path_project + '/5b_differential_gene_expression_analysis/data/CT_clustered_aggregated_data/'
+        path_data = path_project + '/5b_differential_gene_expression_analysis/output/CT_clustered_aggregated_data/'
     elif opt_results_path.startswith('pathway_visualization'):
         path_results = path_project + '/5b_differential_gene_expression_analysis/output/GSA_analysis/'
         path_data = path_project + '/5b_differential_gene_expression_analysis/output/'
@@ -312,7 +312,7 @@ def get_aggregated_data_frames(ct_loom_filename, opt_aggregation, path_data, pat
         df_g = pd.DataFrame(data={'donor_ID_python': Donor_list, 'Group': group_of_donors, 'Age': age_of_donors,'Library':library_of_donors,'PMI':pmi_of_donors,'Sex':sex_of_donors}, index=Donor_list)
         
         os.chdir(path_main+'/3_quality_control/output/')
-        qc_metrics = pd.read_excel('T2_quality_metrics_per_sample.xlsx')
+        qc_metrics = pd.read_excel('T3_quality_metrics_per_sample.xlsx')
         df_g = pd.merge(qc_metrics[['donor_ID_python','p_cells_del_filt','num_reads','num_umi','mean_reads_per_umi']],df_g,on='donor_ID_python')
 
     return(df_m,df_g)
@@ -368,9 +368,9 @@ def get_color_maps_for_anndata(aD):
     aD.uns["filtering_status_colors"] = ["#CC0066","#078383","#939393","#2284C6","#000000"]
     return aD
 
-def get_comparison_DEG_pvals_to_genelists(df_DESeq2_all_genes,opt_save,path_results_long,CT_i,alpha_val,cutoff_q_p,bool_first_CT,df_corr_genelists_up,df_corr_genelists_down,path_project,genelist_version):
+def get_comparison_DEG_pvals_to_genelists(df_DESeq2_all_genes,opt_save,path_results_long,CT_i,alpha_val,cutoff_q_p,bool_first_CT,df_corr_genelists_up,df_corr_genelists_down,gene_matrix_file,genelist_version):
     
-    genelists, genelist_names, qvalues = get_gene_lists_with_qvalues(path_project, genelist_version)
+    genelists, genelist_names, qvalues = get_gene_lists_with_qvalues(gene_matrix_file, genelist_version)
 
     corr_up = np.empty((len(genelists),1))
     corr_down = np.empty((len(genelists),1))
@@ -445,13 +445,13 @@ def get_percentage_wrongly_assigned_group_labels(path_results):
     P = P*100/len(P)
     return(P)
 
-def get_percentage_genes_in_list_and_DEG_for_range_of_cutoffs(path_project, DF_DEG, opt_par, qval_cutoff_range):   
+def get_percentage_genes_in_list_and_DEG_for_range_of_cutoffs(gene_matrix_file, DF_DEG, opt_par, qval_cutoff_range):   
     genelists = []
     genelist_names = []
     q_values = []
     #get genelist info
     for genelist_version in ['v1','v2']:
-        genelists_i, genelist_names_i, q_values_i = get_gene_lists_with_qvalues(path_project,genelist_version)
+        genelists_i, genelist_names_i, q_values_i = get_gene_lists_with_qvalues(gene_matrix_file,genelist_version)
         genelists.extend(genelists_i)
         genelist_names.extend(genelist_names_i)
         q_values.extend(q_values_i)
@@ -480,12 +480,9 @@ def get_percentage_genes_in_list_and_DEG_for_range_of_cutoffs(path_project, DF_D
     P_genes = 100*(N_genes_plotted/N_genes_total)
     return P_genes, genelist_names
 
-def get_gene_lists(path_project,version):
-    if version!='synaptic genes':
-        os.chdir(path_project+'data/Gene_lists/')
+def get_gene_lists(gene_matrix_file,version,gene_sets_file):
 
-    if version == 'v1' or version == 'v2':
-        df_gm = pd.read_csv("geneMatrix_"+version+".tsv",sep='\t')
+    df_gm = pd.read_csv(gene_matrix_file,sep='\t')
         #df_gm.head()
     if version =='v1':
         list_autism_wes = df_gm[df_gm['asd.wes']==True]['gene_name']
@@ -503,7 +500,7 @@ def get_gene_lists(path_project,version):
        
         genelists = [list_autism_wes,list_scz_wes,list_devdelay_wes,list_intellectual_disability,list_adhd2018,list_an2019,list_asd2019,list_bip2019,list_mdd2019,list_scz2021,list_iq2018]
         genelist_names = ['asd.wes','scz.wes','devdelay.wes','list_CNVid', 'list_adhd2018','list_an2019','list_asd2019','list_bip2019','list_mdd2019','list_scz2021','list_iq2018']
-    elif version=='v2':
+    else:
         list_dd2020_wes = df_gm[df_gm['dd2020.wes.fdr05']==True]['gene_name'] #T/F Dev delay WES, Kaplanis Nature 2020
         list_asd2020_wes = df_gm[df_gm['asd2020.wes.fdr05']==True]['gene_name'] #T/F ASD WES, Satterstrom Cell 2020
         list_asd2021_wes = df_gm[df_gm['asd2021.wes.fdr05']==True]['gene_name'] #T/F ASD WES, Fu 2021 bioRxiv
@@ -518,7 +515,7 @@ def get_gene_lists(path_project,version):
         list_scz2022hic = df_gm[df_gm['scz2022hic']==True]['gene_name']#	T/F	 pgc scz2022 gwas, Hi-C anchor in locus and anchor near gene TSS (HCRCI)
         
         #synaptic genes:
-        list_from_geneset_tsv = pd.read_csv(path_project+'code/GSA_analysis/gsa-files-v2/genesets.tsv',sep='\t')
+        list_from_geneset_tsv = pd.read_csv(gene_sets_file,sep='\t')# path_project+'code/GSA_analysis/gsa-files-v2/genesets.tsv'
         #extract syngo genes
         list_synaptic_genes = list_from_geneset_tsv[list_from_geneset_tsv['group']=='synaptic-gene-ontology']['ensgid'].tolist()
         
@@ -528,44 +525,44 @@ def get_gene_lists(path_project,version):
 
         genelists = [list_dd2020_wes,list_asd2020_wes,list_asd2021_wes,list_dd2021_wes,list_ndd2021_wes,list_scz2022_wes_bonfSig,list_scz2022_wes_qval,list_scz2022InLocus,list_scz2022PriorityGene, list_scz2022eqtl, list_scz2022hic, list_synaptic_genes, list_CNV_del_scz, list_CNV_dup_scz]
         genelist_names = ['list_dd2020.wes','list_asd2020.wes','list_asd2021.wes','list_dd2021.wes','list_ndd2021.wes','list_scz2022.wes.bonfSig05','list_scz2022.wes.qvalSig05','list_scz2022InLocus','list_scz2022PriorityGene','list_scz2022eqtl','list_scz2022hic', 'list_synaptic_genes','list_CNV_del_scz','list_CNV_dup_scz']
-    elif version=='mildas_panel':
-       df = pd.read_csv("gene_list_scz_mildas_panel.txt",sep=',',header=None)
-       df = df[0].str.replace('[','')
-       df = df.str.replace(']','')
-       df = df.str.replace('\'','')
-       list_from_mildas_panel = df.tolist()
-       genelists = [list_from_mildas_panel]
-       genelist_names = ['spatial transcriptomics scz panel']
 
     return genelists, genelist_names
 
-def add_CT_colors_to_DF(DF,path_filtered_loom_data,opt_without_removed_cells,number_clusters):
-
-    colors = get_CT_colors_as_df(number_clusters,path_filtered_loom_data)
+def add_CT_colors_to_DF(DF,path_filtered_loom_data,opt_without_removed_cells,number_clusters,opt_short_celltype_names):
+    if opt_short_celltype_names:
+        ct_col = "celltype_short"
+    else:
+        ct_col = "celltype"
+    colors = get_CT_colors_as_df(number_clusters,path_filtered_loom_data,opt_short_celltype_names)
     if opt_without_removed_cells == False:
-        colors.loc[len(colors)] = {"celltype":"none (removed)","color":DF["celltype_color"][DF["celltype"]=="none (removed)"].unique()[0]}
+        colors.loc[len(colors)] = {ct_col:"none (removed)","color":DF["celltype_color"][DF[ct_col]=="none (removed)"].unique()[0]}
     if number_clusters==3:
-        if "celltype" in DF.columns:
-            DF = pd.merge(left=DF, right=colors, on="celltype")
+        if ct_col in DF.columns:
+            DF = pd.merge(left=DF, right=colors, on=ct_col)
         else:
-            colors.rename(columns={"celltype":"cell_type_class","color":"cell_type_class_color"},inplace=True)
+            colors.rename(columns={ct_col:"cell_type_class","color":"cell_type_class_color"},inplace=True)
             DF = pd.merge(left=DF, right=colors, on="cell_type_class")
     else:
-        DF = pd.merge(left=DF, right=colors, on="celltype")
+        DF = pd.merge(left=DF, right=colors, on=ct_col)
     return DF
 
-def get_CT_colors_as_df(n_clusters,path_filtered_data):
+def get_CT_colors_as_df(n_clusters,path_filtered_data,opt_short_celltype_names):
     df = pd.read_excel(path_filtered_data+'/Cell_type_colors.xlsx',engine='openpyxl')
     if n_clusters==3:
         str_ = 'class'
     else:
         str_ = 'type'
+    if n_clusters==16:
+        n_clusters = 15
     CT_col = 'Cell '+str_+' ('+str(n_clusters)+')'
     Col_col = 'Cell '+str_+' ('+str(n_clusters)+') color'
+    
     _, idx = np.unique(df[CT_col].tolist(),return_index=True)
     DF = df[[CT_col,Col_col]].loc[np.sort(idx)]
     DF=DF.rename(columns={CT_col:'celltype',Col_col:'color'})
-
+    if opt_short_celltype_names:
+        DF = get_short_CT_names(DF,"celltype")
+        DF.drop(columns=["celltype"],inplace=True)
     return DF
 
 def get_gene_type_for_deregulated_genes(DF_DEG_results_red, LFC_col, gene_matrix_file,celltype_col,gene_col):
@@ -593,23 +590,23 @@ def get_gene_type_for_deregulated_genes(DF_DEG_results_red, LFC_col, gene_matrix
     return DF_number
 
 def get_CT_order(n_clusters,path_filtered_data,opt_short_names):
-    if path_filtered_data.endswith('cellranger/'):
-        df = pd.read_excel(path_filtered_data+'Cell_type_colors.xlsx',engine='openpyxl')
-        if n_clusters==3:
-            str_ = 'class'
-        else:
-            str_ = 'type'
-        col_of_interest = 'Cell '+str_+' ('+str(n_clusters)+')'
-        if opt_short_names:
-            df = get_short_CT_names(df,col_of_interest)
-            _, idx = np.unique(df[col_of_interest+"_short"].tolist(),return_index=True)
-            CT_order = df[col_of_interest+"_short"][np.sort(idx)].tolist()
-        else:
-            _, idx = np.unique(df[col_of_interest].tolist(),return_index=True)
-            CT_order = df[col_of_interest][np.sort(idx)].tolist()
+
+    df = pd.read_excel(path_filtered_data+'/Cell_type_colors.xlsx',engine='openpyxl')
+    if n_clusters==3:
+        str_ = 'class'
     else:
-        print('This is not implemented yet.')
-        CT_order=[]
+        str_ = 'type'
+    if n_clusters==16:
+        n_clusters = 15
+    col_of_interest = 'Cell '+str_+' ('+str(n_clusters)+')'
+    if opt_short_names:
+        df = get_short_CT_names(df,col_of_interest)
+        _, idx = np.unique(df[col_of_interest+"_short"].tolist(),return_index=True)
+        CT_order = df[col_of_interest+"_short"][np.sort(idx)].tolist()
+    else:
+        _, idx = np.unique(df[col_of_interest].tolist(),return_index=True)
+        CT_order = df[col_of_interest][np.sort(idx)].tolist()
+
     return CT_order
 
 
@@ -633,7 +630,9 @@ def get_number_of_deregulated_genes(DF_DEG_results_red, LFC_col, celltype_col, g
                 new_index[i] = DF_number.index[i]+" neurons"
         DF_number[celltype_col]=new_index
         DF_number.set_index(celltype_col,inplace=True)
-    CT_ordered = get_CT_order(n_clusters,path_filtered_data,False)
+        CT_ordered = get_CT_order(n_clusters,path_filtered_data,False)
+    else:
+        CT_ordered = get_CT_order(n_clusters,path_filtered_data,True)
     #make sure every CT is in DF_number
     if np.shape(DF_number)[0]<len(CT_ordered):
         #CT_missing = [ct.replace(' ','_') for ct in CT_ordered if ct.replace(' ','_') not in DF_number.index.tolist()]
@@ -717,11 +716,10 @@ def resort_columns_in_df(valuesNW):
     valuesNW = valuesNW.reindex(columns = new_columns)
     return valuesNW
 
-def get_gene_lists_with_qvalues(path_project,version):
-    os.chdir(path_project+'data/Gene_lists/')
+def get_gene_lists_with_qvalues(gene_matrix_file,version):
     if version =='v1' or version=='v2':
         #from genematrix:
-        df_gm = pd.read_csv("geneMatrix_"+version+".tsv",sep='\t')
+        df_gm = pd.read_csv(gene_matrix_file,sep='\t')
         df_gm.head()
     else:
         genelists=[]
@@ -845,7 +843,12 @@ def get_results_DF_for_sign_genes(DF_p_vals_fdr_corr,celltype_folders,alpha_val)
 def get_short_CT_names(DF_DEGs,ct_column):
     DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column].str.replace("Inhibitory","Inh")
     DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace("Excitatory","Exc")
-    DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace("Layer_","L")
+    DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace("2_3","2-3")
+    DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace("3_4","3-4")
+    DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace("5_6","5-6")
+    DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace("3_6","3-6")
+    DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace("_"," ")
+    DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace("Layer_","L ")
     DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace("Layer","L")
     DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace("neurons_","")
     DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace(" neurons","")
@@ -859,6 +862,7 @@ def get_short_CT_names(DF_DEGs,ct_column):
     DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace("_and_","/")
     DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace(" and ","/")
     DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace("  "," ")
+
     DF_DEGs[ct_column+"_short"] = DF_DEGs[ct_column+"_short"].str.replace("L ","L")
     return DF_DEGs
 
@@ -921,23 +925,21 @@ def get_number_sign_pw_per_gene(DF_sign,directory,options):
                 DF_sign_pw_per_gene = pd.concat([DF_sign_pw_per_gene,DF_tmp])
     return DF_sign_pw_per_gene
 
-def get_full_DEG_results_folder(path_project,n_cl,dm):
-    _, path_results = get_paths(path_project,'DEG_visualization')
-    if n_cl == 3:
-        DEG_results_folder = path_results + str(n_cl)+'_classes/'+'design_with_'+dm +"/"
-    else:
-        DEG_results_folder = path_results + str(n_cl)+'_CTs/'+'design_with_'+dm +"/"
+def get_full_DEG_results_folder(path_project,dm):
+    _, path_results = get_paths(path_project,'DEG_visualization',"")
+
+    DEG_results_folder = path_results +'design_with_'+dm +"/"
 
     return DEG_results_folder
 
-def get_sign_Genes_with_sign_pathways_per_CT(DF_sign,path_project, n_cl, dm,alpha_val_DEGs,opt_up_and_down_sep):
+def get_sign_Genes_with_sign_pathways_per_CT(DF_sign,path_project,dm,alpha_val_DEGs,opt_up_and_down_sep):
     if opt_up_and_down_sep:
         reg_strings = ['_down','_up']
     else:
         reg_strings = ['']
     #for each DEG in 'genes.in.geneset.tested' extract pathway for significant (in GSA analysis) pathways
     #get DEGs
-    DEG_results_folder = get_full_DEG_results_folder(path_project,n_cl,dm)
+    DEG_results_folder = get_full_DEG_results_folder(path_project,dm) 
     
     DF_pws = DF_sign[DF_sign['subgroup'].str.startswith('GO:')]
     #get DEGs
@@ -974,9 +976,7 @@ def get_sign_Genes_with_sign_pathways_per_CT(DF_sign,path_project, n_cl, dm,alph
                 else:
                     DF_tmp = pd.DataFrame(data={"significant Genes":ensgids, "regulation": reg_str_list, "significant_pathways": pathway, "GO category": GO_category, "Celltype":[ct]*len(ensgids)})
                     DF = pd.concat([DF,DF_tmp])
-    #To DO:
-    #only keep genes in DF that appear in at least two different pathways
-    #make significant pathways into two columns: GO ID significant pathway, significant pathway name
+
     DF[["GO_ID_significant_pathway", "significant_pathway_name"]] = DF.significant_pathways.str.split(" ",expand=True, n=1)
     DF.set_index("significant Genes",inplace=True)
     bool_first = True
@@ -999,7 +999,7 @@ def get_number_sign_pathways_per_DEG_per_CT(DF_sign,path_project, n_cl, dm,alpha
     #for each DEG count how often it occurs in 'genes.in.geneset.tested'
     
     #get DEGs
-    DEG_results_folder = get_full_DEG_results_folder(path_project,n_cl,dm)
+    DEG_results_folder = get_full_DEG_results_folder(path_project,dm)
 
     #get DEGs
     DF_p_vals = pd.read_csv(DEG_results_folder+'df_p_vals_adj_sum_per_celltype.csv')
@@ -1158,7 +1158,7 @@ def get_DFs_all(file_names_all, pval_col_to_extract, alpha_val_DEGs, folder_tran
         #proteomics is never seperately tested in this case
         bool_first_all = True
         
-        DEG_results_folder = get_full_DEG_results_folder(path_project,n_cl,dm)
+        DEG_results_folder = get_full_DEG_results_folder(path_project,dm)
     
         #get DEGs
         DF_p_vals = pd.read_csv(DEG_results_folder+'df_p_vals_adj_sum_per_celltype.csv')
@@ -1322,7 +1322,7 @@ def get_DFs_all_up_down(file_names_all, pval_col_to_extract, alpha_val_DEGs, fol
         
         if "Patient_clustering/" not in folder_transcriptomics:
             #get DEGs for up and down and all cell types
-            DEG_results_folder = get_full_DEG_results_folder(path_project,n_cl,dm)
+            DEG_results_folder = get_full_DEG_results_folder(path_project,dm)
             
             DF_p_vals = pd.read_csv(DEG_results_folder+'df_p_vals_adj_sum_per_celltype.csv')
             #change '-' in colnames to '_'
@@ -1345,7 +1345,7 @@ def get_DFs_all_up_down(file_names_all, pval_col_to_extract, alpha_val_DEGs, fol
             df_tra = pd.DataFrame()
             
             df_tmp = pd.read_csv(folder_transcriptomics+fa,sep=';')
-            df_tra = df_tmp[['TestVar','group','subgroup','geneset','genes.in.geneset.tested',pval_col_to_extract]].copy()  
+            df_tra = df_tmp[['TestVar','group','subgroup','geneset','genes.TestVar.true','genes.in.geneset.tested','genes.in.geneset','overlap.TestVar.geneset',pval_col_to_extract]].copy()  
 
             if "Patient_clustering/" in folder_transcriptomics:
                 #DF_down contains too many columns (also up_or_down.csv files are added) --> fix this!
@@ -1430,7 +1430,7 @@ def get_DFs_all_up_down(file_names_all, pval_col_to_extract, alpha_val_DEGs, fol
                         continue
                         
                 df_tmp = pd.read_csv(results_path_proteomics+f,sep=';')
-                df_pro = df_tmp[['group','subgroup','geneset',pval_col_to_extract]]
+                df_pro = df_tmp[['group','subgroup','geneset','genes.in.geneset','overlap.TestVar.geneset',pval_col_to_extract]]
                 
                 if opt_proteomics_up_and_down_sep:
                     df_pro['celltype_name']='proteomics_'+reg_str_pro_i
@@ -1606,56 +1606,41 @@ def generate_GSA_output_and_statistics(path_info, dm, options, variable_gene_nam
         if len(file_names_sign)>0:
             #get data frame of significant pathways listed for various cell types:
             DF_sign = get_DF_sign(file_names_sign, path_info["path_results_subdirectory"])
+            #export table
+            DF_sign.to_excel("./output/T5_sign_pathways_per_cell_type.xlsx",engine="openpyxl")
             groups = np.unique(DF_sign['group'])
-            if "Patient_clustering" in directory: #GSA of patient clustering gene tensors
-                #TO DO: implement
-                #plot significant pathways per CT per gene
-                #for each gene count how often it occurs in 'genes.in.geneset.tested'
-                
-                DF_sign_pw_per_gene = get_number_sign_pw_per_gene(DF_sign,path_info["path_results_subdirectory"],options,False)
-                #plot_number_pathways_per_gene(DF_sign_pw_per_gene, options["opt_save"], path_info["path_results_subdirectory"],n_cl,path_info["path_colors"],  "")
-                for group_name in groups:
-                    DF_sign_group_i = DF_sign[DF_sign['group']==group_name].copy()
-                    DF_sign_pw_per_gene_gr_i = get_number_sign_pw_per_gene(DF_sign_group_i,path_info["path_results_subdirectory"],options,False)
-                    if len(DF_sign_pw_per_gene_gr_i)>0:
-                        plot_number_pathways_per_gene(DF_sign_pw_per_gene_gr_i, options["opt_save"], path_info["path_results_subdirectory"],n_cl,path_info["path_colors"], group_name)
-                #UMAP/ PCA taking pseudobulk expression data of gene list genes for each factor and each CT separately. if whole data set: color code for SCZ and CTRL samples
-                cts = [s.split('_up')[0] for s in DF_sign['TestVar'].unique().tolist() if s.endswith('up')]
-                factor = path_info["path_results_subdirectory"].split('/')[-2]
-                plot_PCA_of_pseudobulk_data_for_gene_selection(cts,options, path_info, n_cl, factor, "input_GSA_of_factors","")
-                
-            else: #GSA of DEGs
-                # which biol. functions are using the same disrupted genes?
-                # investigate how many DEGs map to two or more pathways with different parent terms: what are the parent terms?
-                DF_pw_sharing_DEGs = get_sign_Genes_with_sign_pathways_per_CT(DF_sign,path_info["path_project"], n_cl, dm,alpha_val_DEGs, options["opt_up_and_down_sep"])
-                #later with rrvgo info: identify which genes are shared across parent Terms and which parent terms these are: is there a pattern?
-                GO_term_str = ['BP','MF','CC']
-                for go_str in GO_term_str:
-                    #get GO term clustering:
-                    rrvgo_info_strings = ['up','down']
-                    for rrvgo_info_str in rrvgo_info_strings:
-                        rrvgo_filename = 'module_list_rrvgo_all_'+go_str+'_size_'+rrvgo_info_str+'.csv'
-                        if os.path.isfile(path_info["path_results_subdirectory"]+rrvgo_filename): 
-                            module_info_tmp = pd.read_csv(path_info["path_results_subdirectory"]+rrvgo_filename)
-                            module_info_tmp.drop(columns=[c for c in module_info_tmp.columns if c not in ['go','term',"parent","parentTerm"]])
-                            if rrvgo_info_str=='up':
-                                module_info = module_info_tmp
-                            else:
-                                module_info = pd.concat([module_info,module_info_tmp])
-                    #integrate this info for current GO term in DF_pw_sharing_DEG
 
-                DF_sign_pw_per_DEG = get_number_sign_pathways_per_DEG_per_CT(DF_sign,path_info["path_project"], n_cl, dm, alpha_val_DEGs,options["opt_filter_stats_for_GOs"])
-                if options["opt_filter_stats_for_GOs"]:
-                    add_str_2 = "_GOs_only"
-                else:
-                    add_str_2 = "_all_pws_tested"
-                #plot number of significant pathways per down- vs. per up-regulated DEG
-                plot_number_pathways_per_gene(DF_sign_pw_per_DEG, options["opt_save"], path_info["path_results_subdirectory"], n_cl, path_info["path_colors"],add_str+add_str_2)
-                # for each group separately:
-                for group_name in groups:
-                    DF_sign_group_i = DF_sign[DF_sign['group']==group_name].copy()
-                    DF_sign_pw_per_DEG_gr_i = get_number_sign_pathways_per_DEG_per_CT(DF_sign_group_i,path_info["path_project"], n_cl, dm, alpha_val_DEGs,False)
-                    plot_number_pathways_per_gene(DF_sign_pw_per_DEG_gr_i, options["opt_save"], path_info["path_results_subdirectory"], n_cl, path_info["path_colors"], group_name+'_'+add_str)
+            # which biol. functions are using the same disrupted genes?
+            # investigate how many DEGs map to two or more pathways with different parent terms: what are the parent terms?
+            DF_pw_sharing_DEGs = get_sign_Genes_with_sign_pathways_per_CT(DF_sign,path_info["path_project"], dm,alpha_val_DEGs, options["opt_up_and_down_sep"])
+            #later with rrvgo info: identify which genes are shared across parent Terms and which parent terms these are: is there a pattern?
+            GO_term_str = ['BP','MF','CC']
+            for go_str in GO_term_str:
+                #get GO term clustering:
+                rrvgo_info_strings = ['up','down']
+                for rrvgo_info_str in rrvgo_info_strings:
+                    rrvgo_filename = 'module_list_rrvgo_all_'+go_str+'_size_'+rrvgo_info_str+'.csv'
+                    if os.path.isfile(path_info["path_results_subdirectory"]+rrvgo_filename): 
+                        module_info_tmp = pd.read_csv(path_info["path_results_subdirectory"]+rrvgo_filename)
+                        module_info_tmp.drop(columns=[c for c in module_info_tmp.columns if c not in ['go','term',"parent","parentTerm"]])
+                        if rrvgo_info_str=='up':
+                            module_info = module_info_tmp
+                        else:
+                            module_info = pd.concat([module_info,module_info_tmp])
+                #integrate this info for current GO term in DF_pw_sharing_DEG
+
+            DF_sign_pw_per_DEG = get_number_sign_pathways_per_DEG_per_CT(DF_sign,path_info["path_project"], n_cl, dm, alpha_val_DEGs,options["opt_filter_stats_for_GOs"])
+            if options["opt_filter_stats_for_GOs"]:
+                add_str_2 = "_GOs_only"
+            else:
+                add_str_2 = "_all_pws_tested"
+            #plot number of significant pathways per down- vs. per up-regulated DEG
+            plot_number_pathways_per_gene(DF_sign_pw_per_DEG, options["opt_save"], path_info["path_results_subdirectory"], n_cl, path_info["path_colors"],add_str+add_str_2)
+            # for each group separately:
+            for group_name in groups:
+                DF_sign_group_i = DF_sign[DF_sign['group']==group_name].copy()
+                DF_sign_pw_per_DEG_gr_i = get_number_sign_pathways_per_DEG_per_CT(DF_sign_group_i,path_info["path_project"], n_cl, dm, alpha_val_DEGs,False)
+                plot_number_pathways_per_gene(DF_sign_pw_per_DEG_gr_i, options["opt_save"], path_info["path_results_subdirectory"], n_cl, path_info["path_colors"], group_name+'_'+add_str)
                 
             if options["opt_plot_n_pathways_heatmap"]:
                 #heatmaps of number of up-/ down-regulated genes:
@@ -1701,12 +1686,12 @@ def generate_GSA_output_and_statistics(path_info, dm, options, variable_gene_nam
             
             if options["opt_plot_upsets"]:
                 if options["opt_up_and_down_sep"]:
-                    plot_number_sign_pathways_as_upset(DF_all_p_up, 'up', '', options["p_val_cutoff"], options["pval_col_to_extract"],options["index_cols"],5,options["opt_save"], path_info["path_results_subdirectory"])
-                    plot_number_sign_pathways_as_upset(DF_all_p_down, 'down', '', options["p_val_cutoff"], options["pval_col_to_extract"],options["index_cols"],5,options["opt_save"], path_info["path_results_subdirectory"])
-                    plot_number_sign_pathways_as_upset(pd.concat([DF_all_p_up,DF_all_p_down]), 'all_separately', '', options["p_val_cutoff"], options["pval_col_to_extract"],options["index_cols"],5,options["opt_save"], path_info["path_results_subdirectory"])
-                    plot_number_sign_pathways_as_upset(pd.concat([DF_all_p_up,DF_all_p_down]), 'up_down_together','', options["p_val_cutoff"], options["pval_col_to_extract"],options["index_cols"],5,options["opt_save"], path_info["path_results_subdirectory"])
+                    #plot_number_sign_pathways_as_upset(DF_all_p_up, 'up', '', options["p_val_cutoff"],5,options["opt_save"], path_info["path_results_subdirectory"])
+                    #plot_number_sign_pathways_as_upset(DF_all_p_down, 'down', '', options["p_val_cutoff"],5,options["opt_save"], path_info["path_results_subdirectory"])
+                    plot_number_sign_pathways_as_upset(pd.concat([DF_all_p_up,DF_all_p_down]), 'all_separately', '', options["p_val_cutoff"], 0,options["opt_save"], path_info["path_results_subdirectory"])
+                    plot_number_sign_pathways_as_upset(pd.concat([DF_all_p_up,DF_all_p_down]), 'up_down_together','', options["p_val_cutoff"],0,options["opt_save"], path_info["path_results_subdirectory"])
                 else:
-                    plot_number_sign_pathways_as_upset(DF_all_p,'all_together','', options["p_val_cutoff"], options["pval_col_to_extract"],options["index_cols"],0,options["opt_save"], path_info["path_results_subdirectory"])
+                    plot_number_sign_pathways_as_upset(DF_all_p,'all_together','', options["p_val_cutoff"],0,options["opt_save"], path_info["path_results_subdirectory"])
                     
             #stats per group:
             if options["opt_up_and_down_sep"]:
@@ -1726,10 +1711,10 @@ def generate_GSA_output_and_statistics(path_info, dm, options, variable_gene_nam
                     if options["opt_plot_pathway_statistics"]:
                         plot_number_of_celltype_specific_and_shared_pathways(pd.merge(left=DF_all_p_up_group_i,right=DF_all_p_down_group_i,how="right",right_index=True,left_index=True),options["p_val_cutoff"],path_info["path_results_subdirectory"], options["opt_save"], group_name+'_'+add_str,options["opt_proteomics"], options["opt_proteomics_up_and_down_sep"], False)
                     if options["opt_plot_upsets"]:
-                        plot_number_sign_pathways_as_upset(DF_all_p_up_group_i, 'up', group_name, options["p_val_cutoff"], options["pval_col_to_extract"],options["index_cols"],1,options["opt_save"], path_info["path_results_subdirectory"])
-                        plot_number_sign_pathways_as_upset(DF_all_p_down_group_i, 'down', group_name, options["p_val_cutoff"], options["pval_col_to_extract"],options["index_cols"],1,options["opt_save"], path_info["path_results_subdirectory"])
-                        plot_number_sign_pathways_as_upset(pd.concat([DF_all_p_up_group_i,DF_all_p_down_group_i]), 'all_separately',group_name, options["p_val_cutoff"], options["pval_col_to_extract"],options["index_cols"],1,options["opt_save"], path_info["path_results_subdirectory"])
-                        plot_number_sign_pathways_as_upset(pd.concat([DF_all_p_up_group_i,DF_all_p_down_group_i]), 'up_down_together',group_name, options["p_val_cutoff"], options["pval_col_to_extract"],options["index_cols"],1,options["opt_save"], path_info["path_results_subdirectory"])
+                        #plot_number_sign_pathways_as_upset(DF_all_p_up_group_i, 'up', group_name, options["p_val_cutoff"],1,options["opt_save"], path_info["path_results_subdirectory"])
+                        #plot_number_sign_pathways_as_upset(DF_all_p_down_group_i, 'down', group_name, options["p_val_cutoff"],1,options["opt_save"], path_info["path_results_subdirectory"])
+                        plot_number_sign_pathways_as_upset(pd.concat([DF_all_p_up_group_i,DF_all_p_down_group_i]), 'all_separately',group_name, options["p_val_cutoff"],0,options["opt_save"], path_info["path_results_subdirectory"])
+                        plot_number_sign_pathways_as_upset(pd.concat([DF_all_p_up_group_i,DF_all_p_down_group_i]), 'up_down_together',group_name, options["p_val_cutoff"],0,options["opt_save"], path_info["path_results_subdirectory"])
                 else:
                     DF_all_p_group_i = DF_all_p.loc[[group_name]].copy()
                     DF_all_group_i = DF_all[DF_all['group']==group_name].copy() 
@@ -1740,7 +1725,7 @@ def generate_GSA_output_and_statistics(path_info, dm, options, variable_gene_nam
                         plot_number_of_celltype_specific_and_shared_pathways(DF_all_p_group_i,options["p_val_cutoff"],path_info["path_results_subdirectory"], options["opt_save"], group_name+'_'+add_str,options["opt_proteomics"], options["opt_proteomics_up_and_down_sep"],False)
                     DF_n_pw_group_i = get_statistics_pathways_all(DF_all_p_group_i, df_number_pws_not_tested, options["p_val_cutoff"], options["pval_col_to_extract"])
                     if options["opt_plot_upsets"]:
-                        plot_number_sign_pathways_as_upset(DF_all_p_group_i,'all_together',group_name, options["p_val_cutoff"], options["pval_col_to_extract"],options["index_cols"],1,options["opt_save"], path_info["path_results_subdirectory"])
+                        plot_number_sign_pathways_as_upset(DF_all_p_group_i,'all_together',group_name, options["p_val_cutoff"], 1,options["opt_save"], path_info["path_results_subdirectory"])
                 if options["opt_plot_pathway_statistics"]:
                     plot_pathway_statistics(DF_n_pw_group_i, options["opt_save"], path_info["path_results_subdirectory"], add_str+'_'+group_name,n_cl,path_info["path_colors"], options["opt_proteomics"],"")
             
@@ -1783,8 +1768,7 @@ def plot_percentage_upregulated_DEGs_in_pathways(DF_all,pval_col_to_extract,p_va
             plt.close(fig)
             plt.clf()   
 
-def plot_number_sign_pathways_as_upset(DF, r_str, group_name, p_val_cutoff, pval_col_to_extract,index_cols,min_ss,opt_save, path_results):
-    #TO DO: short ct names
+def plot_number_sign_pathways_as_upset(DF, r_str, group_name, p_val_cutoff, min_ss,opt_save, path_results):
     params = {'font.size':10, 'axes.labelsize':10, 'xtick.labelsize':10, 'ytick.labelsize':10}
     if r_str == 'up':
         color='darkred'
@@ -1952,27 +1936,164 @@ def plot_PCs_pathways(principalDF, n_cl, path_results, path_colors, opt_color_co
         plt.clf()
 
 ### plot functions
-def plot_signed_DEG_corr_clustermaps(df_DESeq2_all_genes_all_CTs,path_results):
-    df_DESeq2_all_genes_all_CTs = get_short_CT_names(df_DESeq2_all_genes_all_CTs,ct_column="celltype")
-    df_DESeq2_all_genes_all_CTs["signed_padj"] = df_DESeq2_all_genes_all_CTs["padj"]
-    df_DESeq2_all_genes_all_CTs.loc[df_DESeq2_all_genes_all_CTs["log2FoldChange"]<0,"signed_padj"] = df_DESeq2_all_genes_all_CTs[df_DESeq2_all_genes_all_CTs["log2FoldChange"]<0]["padj"]*(-1)
+def plot_signed_DEG_corr_clustermaps(df_DESeq2_all_genes_all_CTs,path_results,alpha_val_range,opt_sign_in_one_ct):
     pivot_opt = ["signed_padj","log2FoldChange"]
-    for ps in pivot_opt:
-        df_tmp = df_DESeq2_all_genes_all_CTs[[ps,"celltype_short"]].copy()
-        df_pivot = pd.pivot_table(data=df_tmp,values=ps,columns="celltype_short",index="Gene_short")
-        corr_methods = ["pearson","spearman"]
-        for m in corr_methods:
-            df_corr = df_pivot.corr(method=m)
-            sns.clustermap(data=df_corr,cmap="BrBG",vmin=-1, vmax=1)
-            path=path_results+'figures/correlation_between_CTs/'
-            isExist = os.path.exists(path)
-            if not isExist:
-                os.makedirs(path)
-            plt.savefig(path+'Genes_'+m+'_correlation_between_cts_based_on_'+ps+'.pdf',bbox_inches='tight')
-            plt.close()
-            plt.clf()
+    path=path_results+'figures/correlation_between_CTs/'
+    isExist = os.path.exists(path)
+    if not isExist:
+        os.makedirs(path)
+    if opt_sign_in_one_ct:
+        df_DESeq2_all_genes_all_CTs = get_short_ct_names_and_signed_pvals(df_DESeq2_all_genes_all_CTs)
+        CT_list = np.unique(df_DESeq2_all_genes_all_CTs["celltype_short"].tolist())
+
+        for alpha_val in alpha_val_range:
+            #for every CT: pick the genes below alpha_val_range
+            for ps in pivot_opt:
+                bool_first_ct = True
+                for ct in CT_list:
+                    df_ct = df_DESeq2_all_genes_all_CTs[np.logical_and(df_DESeq2_all_genes_all_CTs["celltype_short"]==ct,df_DESeq2_all_genes_all_CTs["padj"]<alpha_val)]
+                    N_genes_ct = len(df_ct["Gene"].unique())
+                    ct_new = ct + " (" + str(N_genes_ct) + ")"
+                    if N_genes_ct>=3:
+                        df_sign_ct_i_genes = df_DESeq2_all_genes_all_CTs[df_DESeq2_all_genes_all_CTs["Gene"].isin(df_ct["Gene"].tolist())].copy()
+                        df_tmp_p = df_sign_ct_i_genes[["Gene",ps,"celltype_short"]].copy()
+                        df_pivot = pd.pivot_table(data=df_tmp_p,values=ps,columns="celltype_short",index="Gene")
+                        #calculate correlation for this ct with all other cts:
+                        corr_p = df_pivot.corr(method="pearson",min_periods=3)
+                        corr_s = df_pivot.corr(method="spearman",min_periods=3)
+                        #extract for ct of interest:
+                        if bool_first_ct == True:
+                            df_corr_p = corr_p.copy() 
+                            df_corr_s = corr_s.copy()
+                            df_corr_p["celltype_with_n_genes"] = df_corr_p.index.tolist()
+                            df_corr_s["celltype_with_n_genes"] = df_corr_s.index.tolist()
+                            df_corr_p.loc[ct,"celltype_with_n_genes"] = ct_new
+                            df_corr_s.loc[ct,"celltype_with_n_genes"] = ct_new
+                            bool_first_ct = False
+                        else:
+                            df_corr_p.loc[ct] = corr_p.loc[ct].copy() 
+                            df_corr_s.loc[ct] = corr_s.loc[ct].copy()
+                            df_corr_p.loc[ct,"celltype_with_n_genes"] = ct_new
+                            df_corr_s.loc[ct,"celltype_with_n_genes"] = ct_new
+                        #determine number of genes and add to column/ row names
+                    else:
+                        df_corr_p.loc[ct,CT_list] = np.nan
+                        df_corr_s.loc[ct,CT_list] = np.nan
+                        df_corr_p.loc[ct,"celltype_with_n_genes"] = ct_new
+                        df_corr_s.loc[ct,"celltype_with_n_genes"] = ct_new
+                df_corr_p.set_index("celltype_with_n_genes",inplace=True,drop=True)
+                df_corr_s.set_index("celltype_with_n_genes",inplace=True,drop=True)
+                plot_cluster_and_heatmap(df_corr_p,alpha_val,ps,path,"pearson",df_pivot,opt_sign_in_one_ct)
+                plot_cluster_and_heatmap(df_corr_s,alpha_val,ps,path,"spearman",df_pivot,opt_sign_in_one_ct)
+    else:
+        for alpha_val in alpha_val_range:
+            df_tmp = get_df_for_signed_DEG_corr_clustermaps(df_DESeq2_all_genes_all_CTs,alpha_val)
+            
+            for ps in pivot_opt:
+                df_tmp_p = df_tmp[["Gene",ps,"celltype_short"]].copy()
+                df_pivot = pd.pivot_table(data=df_tmp_p,values=ps,columns="celltype_short",index="Gene")
+                corr_methods = ["pearson","spearman"]
+                #th_per_corr_method = [0.98,0.95]
+                for m_id,m in enumerate(corr_methods):
+                    df_corr = df_pivot.corr(method=m,min_periods=3)
+                    #remove cell types with too many missing values:
+                    col_to_remove = df_pivot.columns[np.shape(df_pivot)[0]-df_pivot.isna().sum()<3].tolist()
+                    df_corr.drop(columns=col_to_remove, inplace=True)
+                    df_corr.drop(index=col_to_remove,inplace=True)
+                    plot_cluster_and_heatmap(df_corr,alpha_val,ps,path,m,df_pivot,opt_sign_in_one_ct)
+
+def plot_cluster_and_heatmap(df_corr,alpha_val,ps,path,m,df_pivot,opt_sign_in_one_ct):
+    if opt_sign_in_one_ct:
+        add_str = "_sign_in_one_ct"
+    else:
+        add_str = ""
+    df_corr_no_nan = df_corr.copy().fillna(0)
+    cl = sns.clustermap(data=df_corr_no_nan,cmap="BrBG",vmin=-1, vmax=1)
+    #save to have the dendrogram later:
+    plt.savefig(path+"dendro_"+str(alpha_val).replace('.','_')+'_DEG_Genes_'+m+'_corr_based_on_'+ps+add_str+'.pdf',bbox_inches='tight')
+    plt.clf()
+
+    CTs_ordered_rows = df_corr.index[cl.dendrogram_row.reordered_ind].tolist()
+    CTs_ordered_cols = df_corr.columns[cl.dendrogram_col.reordered_ind].tolist()
+    df_corr_ordered = df_corr.loc[CTs_ordered_rows][CTs_ordered_cols]
+    plt.close("all")
+    if opt_sign_in_one_ct==False:
+        #upper triange white 
+        # Generate a mask for the upper triangle
+        mask = np.tril(np.ones_like(df_corr_ordered, dtype=bool))
+        g=sns.heatmap(data=df_corr_ordered.transpose(),mask=~mask, center=0,cmap="BrBG",square=True,vmin=-1,vmax=1,annot=True,annot_kws={"fontsize":7})
+    else: 
+        g=sns.heatmap(data=df_corr_ordered.transpose(),center=0,cmap="BrBG",square=True,vmin=-1,vmax=1,annot=True,annot_kws={"fontsize":7})
+    g.axes.set_xticklabels(g.axes.get_xmajorticklabels(), fontsize = 7)
+    g.axes.set_yticklabels(g.axes.get_ymajorticklabels(), fontsize = 7)
+    #nan to grey
+    g.collections[0].cmap.set_bad('0.7')
+    ct_list_ordered = df_corr_ordered.columns.tolist()
+    if opt_sign_in_one_ct==False:
+        N_genes = np.zeros((len(ct_list_ordered),len(ct_list_ordered)))
+        for i,ct_i in enumerate(ct_list_ordered):
+            for j,ct_j in enumerate(ct_list_ordered):
+                N_genes[i,j] = np.shape(df_pivot[[ct_i,ct_j]].dropna(axis=0,how="any"))[0]
+        t_id=0
+        id_row = 0
+        id_col = 0
+        n_cols = np.shape(N_genes)[0]
+        for ID in range(0,len(N_genes.flatten())):
+            corr_val = np.array(df_corr_ordered)[id_row,id_col]
+            n_genes = int(N_genes[id_row,id_col])
+            if id_col<= id_row: #lower triangle or diagonal value
+                if n_genes<3:
+                    t = g.texts[t_id]
+                    t.set_text("") # if not it sets an empty text
+                
+                elif ~np.isnan(corr_val) and n_genes>=3:
+                    t = g.texts[t_id]
+                    t.set_text("{:.1f}\n{:d}".format(corr_val, n_genes))
+
+                if ~np.isnan(corr_val):
+                    t_id = t_id + 1
+                #if float(t.get_text())>=th_per_corr_method[m_id] and float(t.get_text())<=1:
+                #    t.set_text(t.get_text()) #if the value is greater than 0.4 then I set the text 
+                #else:
+                #    t.set_text("") # if not it sets an empty text
+            id_col = id_col+1
+            if id_col == n_cols:
+                id_col = 0
+                id_row = id_row+1
+    
+    plt.savefig(path+str(alpha_val).replace('.','_')+'_DEG_Genes_'+m+'_correlation_between_cts_based_on_'+ps+add_str+'.pdf',bbox_inches='tight')
+    plt.close()
+    plt.clf()
+
+def get_short_ct_names_and_signed_pvals(df):
+    df_tmp = get_short_CT_names(df,ct_column="celltype")
+    df_tmp["signed_padj"] = df_tmp["padj"]
+    df_tmp.loc[df_tmp["log2FoldChange"]<0,"signed_padj"] = df_tmp[df_tmp["log2FoldChange"]<0]["padj"]*(-1)
+    return df_tmp
+
+def get_df_for_signed_DEG_corr_clustermaps(df,alpha_val):
+    df_tmp = get_short_ct_names_and_signed_pvals(df)
+    #select genes with adj pval <= alpha_val
+    gene_sel = df_tmp["Gene"][df_tmp["signed_padj"].abs()<=alpha_val].unique().tolist()
+    df_tmp.drop(df_tmp[~df_tmp["Gene"].isin(gene_sel)].index,inplace=True)
+    #only keep values for genes that are DEG for this cell type:
+    CT_list = df_tmp["celltype"].unique().tolist()
+    for ct in CT_list:
+        df_ct = df_tmp[df_tmp["celltype"]==ct].copy()
+        #drop non-significant genes for current cell type:
+        #genes_to_drop = df_ct[df_ct["padj"]>alpha_val]["Gene_short"].tolist()
+        genes_to_drop = df_ct.index[df_ct["padj"]>alpha_val].tolist()
+        #msk = (df_DESeq2_all_genes_all_CTs["Gene_short"].isin(genes_to_drop)) & (df_DESeq2_all_genes_all_CTs["celltype"]==ct)
+        msk = (df_tmp.index.isin(genes_to_drop)) & (df_tmp["celltype"]==ct)
+        idx_to_drop = df_tmp.index[msk]
+        df_tmp = df_tmp.drop(idx_to_drop)
+
+    return df_tmp
 
 def plot_heatmap_DEG_result_for_genes_in_genelist(DF_DEG,genelist,genelist_name,q_values,opt_save,path_results,opt_genes_to_show,opt_par,genelist_version,mode,opt_add_proteomics,path_results_proteomics, path_results_proteomics_hgnc, hgnc_file, proteomics_file):
+    number_of_genes_total = 0
+    number_of_genes_plotted = 0
+
     if genelist_name in ['asd.wes','scz.wes']:
         string1 = 'q-value '
     else:
@@ -2002,73 +2123,80 @@ def plot_heatmap_DEG_result_for_genes_in_genelist(DF_DEG,genelist,genelist_name,
         idx=range(0,len(DF_red_all))
         opt_q_val_in_gl=False
     
-    #add line for proteomics in graphic
-    if opt_add_proteomics:
-        DF_p = get_DEP_results(path_results_proteomics,proteomics_file,1,'','', 1 ,path_results_proteomics_hgnc+hgnc_file)
-        #add toDF_red_all as separate "celltype"
-        if 'celltype_short' in DF_red_all.columns:
-            ct_col = 'celltype_short'
-        elif 'celltype_name' in DF_red_all.columns:
-            ct_col = 'celltype_name'
-        else:
-            ct_col = 'celltype'
-        DF_p[ct_col] = "Proteomics"
-        DF_p=DF_p.rename(columns={"Gene":"Gene_short","log2FoldChange_DEP":"log2FoldChange","qvalue_DEP":"padj"})
-        DF_p.drop(columns=[c for c in DF_p.columns if c not in ["Gene_short","log2FoldChange","padj",ct_col]],inplace=True)#,"signed_padj","Color_sign"]])
-        #only keep genes of interest (in current genelist):
-        genes_of_interest = np.unique(DF.index.tolist()).tolist()
-        DF_red_all = DF_red_all.reset_index()
-        #merge data frames:
-        DF_red_all = pd.concat([DF_red_all,DF_p])
-        DF_red_all = DF_red_all.set_index("Gene_short")
-        gene_sel = [g for g in np.unique(DF_red_all.index.tolist()).tolist() if g in genes_of_interest]
-        DF_red_all = DF_red_all.loc[gene_sel]
+    #if DF_red_all empty: return 0, otherwise plot
+    if len(DF_red_all)==0:
+        return (number_of_genes_total, number_of_genes_plotted)
+    else:
+        #add line for proteomics in graphic
+        if opt_add_proteomics:
+            DF_p = get_DEP_results(path_results_proteomics,proteomics_file,1,'','', 1 ,path_results_proteomics_hgnc+hgnc_file)
+            #add toDF_red_all as separate "celltype"
+            if 'celltype_short' in DF_red_all.columns:
+                ct_col = 'celltype_short'
+            elif 'celltype_name' in DF_red_all.columns:
+                ct_col = 'celltype_name'
+            else:
+                ct_col = 'celltype'
+            DF_p[ct_col] = "Proteomics"
+            DF_p=DF_p.rename(columns={"Gene":"Gene_short","log2FoldChange_DEP":"log2FoldChange","qvalue_DEP":"padj"})
+            DF_p.drop(columns=[c for c in DF_p.columns if c not in ["Gene_short","log2FoldChange","padj",ct_col]],inplace=True)#,"signed_padj","Color_sign"]])
+            #only keep genes of interest (in current genelist):
+            genes_of_interest = np.unique(genelist).tolist() #np.unique(DF.index.tolist()).tolist()
+            DF_red_all = DF_red_all.reset_index()
+            #merge data frames:
+            DF_red_all = pd.concat([DF_red_all,DF_p])
+            DF_red_all = DF_red_all.set_index("Gene_short")
+            gene_sel = [g for g in np.unique(DF_red_all.index.tolist()).tolist() if g in genes_of_interest]
+            DF_red_all = DF_red_all.loc[gene_sel]
 
-    if opt_genes_to_show=='top_genes':
-        #keep only top genes:
-        genes_shortlisted = DF_red_all['Gene'][np.sort(idx)].tolist()
-        genes_shortlisted_unique = get_unique_values_in_list_while_preserving_order(genes_shortlisted)
-        number_of_genes_total = len(genes_shortlisted_unique)
-        if number_of_genes_total>opt_par:
-            rounds = round(number_of_genes_total/opt_par)
-            genes_of_interest = genes_shortlisted_unique[0:opt_par]
-        else:
-            rounds = 1
-            genes_of_interest = genes_shortlisted_unique
-        for r_id in range(0,rounds):
-            if r_id>0 and opt_genes_to_show=='top_genes':
-                genes_of_interest = genes_shortlisted_unique[opt_par*(r_id-1):opt_par*r_id]
-            DF_red = DF_red_all[DF_red_all['Gene'].isin(genes_of_interest)]
-            heatmap_data, _, number_of_genes_plotted = get_ordered_heatmap_data_genelist_DEG_overlap_and_number_of_genes(DF_red, genelist_name, n_round, opt_par, opt_genes_to_show,opt_q_val_in_gl,mode,opt_add_proteomics)
-            if number_of_genes_plotted > 0:
-                # _,idx = np.unique(DF_red['Gene (q_val)'],return_index=True)
-                # idx_sorted = DF_red['Gene (q_val)'][np.sort(idx)]
-                # heatmap_data = heatmap_data.reindex(idx_sorted)
-                #color_def = np.array(fc.dec_to_rgb(colors.to_rgb('white'))).tolist(), np.arrayfc.dec_to_rgb(colors.to_rgb('teal')).tolist(),np.array(fc.dec_to_rgb(colors.to_rgb('darkred')).tolist(),np.array(fc.dec_to_rgb(colors.to_rgb('white')).tolist()
-                plot_heatmap_genelist(heatmap_data, r_id, mode, DF_red_all, genelist_name,opt_genes_to_show,opt_save, path_results,opt_add_proteomics)
-            
-    elif opt_genes_to_show=='genes_with_strong_signal':
-        genes_of_interest = DF_red_all['Gene'][np.sort(idx)].tolist()            
-        DF_red = DF_red_all[DF_red_all['Gene'].isin(genes_of_interest)]
-        if np.shape(DF_red)[0]>0:
-            print(genelist_name)
-            heatmap_data, number_of_genes_total, number_of_genes_plotted = get_ordered_heatmap_data_genelist_DEG_overlap_and_number_of_genes(DF_red, genelist_name, n_round, opt_par, opt_genes_to_show,opt_q_val_in_gl,mode,opt_add_proteomics)
-            # _,idx = np.unique(DF_red['Gene (q_val)'],return_index=True)
-            # idx_sorted = DF_red['Gene (q_val)'][np.sort(idx)]
-            # heatmap_data = heatmap_data.reindex(idx_sorted)
-            #color_def = np.array(fc.dec_to_rgb(colors.to_rgb('white'))).tolist(), np.arrayfc.dec_to_rgb(colors.to_rgb('teal')).tolist(),np.array(fc.dec_to_rgb(colors.to_rgb('darkred')).tolist(),np.array(fc.dec_to_rgb(colors.to_rgb('white')).tolist()
-            if number_of_genes_plotted > 0:
-                rounds = int(np.ceil(np.shape(heatmap_data)[0]/50))
+        if opt_genes_to_show=='top_genes':
+            if len(DF_red_all)==0:
+                return (number_of_genes_total, number_of_genes_plotted)
+            else:
+                #keep only top genes:
+                genes_shortlisted = DF_red_all['Gene'][np.sort(idx)].tolist()
+                genes_shortlisted_unique = get_unique_values_in_list_while_preserving_order(genes_shortlisted)
+                number_of_genes_total = len(genes_shortlisted_unique)
+                if number_of_genes_total>opt_par:
+                    rounds = round(number_of_genes_total/opt_par)
+                    genes_of_interest = genes_shortlisted_unique[0:opt_par]
+                else:
+                    rounds = 1
+                    genes_of_interest = genes_shortlisted_unique
                 for r_id in range(0,rounds):
-                    heatmap_data_sel = heatmap_data.iloc[50*r_id:50*(r_id+1), ]
-                    plot_heatmap_genelist(heatmap_data_sel, r_id, mode, DF_red_all, genelist_name,opt_genes_to_show,opt_save, path_results,opt_add_proteomics)
-        else:
-            number_of_genes_total = 0
-            number_of_genes_plotted = 0
-    return (number_of_genes_total, number_of_genes_plotted)
+                    if r_id>0 and opt_genes_to_show=='top_genes':
+                        genes_of_interest = genes_shortlisted_unique[opt_par*(r_id-1):opt_par*r_id]
+                    DF_red = DF_red_all[DF_red_all['Gene'].isin(genes_of_interest)]
+                    heatmap_data, _, number_of_genes_plotted = get_ordered_heatmap_data_genelist_DEG_overlap_and_number_of_genes(DF_red, genelist_name, n_round, opt_par, opt_genes_to_show,opt_q_val_in_gl,mode,opt_add_proteomics)
+                    if number_of_genes_plotted > 0:
+                        # _,idx = np.unique(DF_red['Gene (q_val)'],return_index=True)
+                        # idx_sorted = DF_red['Gene (q_val)'][np.sort(idx)]
+                        # heatmap_data = heatmap_data.reindex(idx_sorted)
+                        #color_def = np.array(fc.dec_to_rgb(colors.to_rgb('white'))).tolist(), np.arrayfc.dec_to_rgb(colors.to_rgb('teal')).tolist(),np.array(fc.dec_to_rgb(colors.to_rgb('darkred')).tolist(),np.array(fc.dec_to_rgb(colors.to_rgb('white')).tolist()
+                        plot_heatmap_genelist(heatmap_data, r_id, mode, DF_red_all, genelist_name,opt_genes_to_show,opt_save, path_results,opt_add_proteomics)
+                
+        elif opt_genes_to_show=='genes_with_strong_signal':
+            genes_of_interest = DF_red_all['Gene'][np.sort(idx)].tolist()            
+            DF_red = DF_red_all[DF_red_all['Gene'].isin(genes_of_interest)]
+            if len(DF_red)==0:
+                return (number_of_genes_total, number_of_genes_plotted)
+            else:
+                if np.shape(DF_red)[0]>0:
+                    print(genelist_name)
+                    heatmap_data, number_of_genes_total, number_of_genes_plotted = get_ordered_heatmap_data_genelist_DEG_overlap_and_number_of_genes(DF_red, genelist_name, n_round, opt_par, opt_genes_to_show,opt_q_val_in_gl,mode,opt_add_proteomics)
+                    # _,idx = np.unique(DF_red['Gene (q_val)'],return_index=True)
+                    # idx_sorted = DF_red['Gene (q_val)'][np.sort(idx)]
+                    # heatmap_data = heatmap_data.reindex(idx_sorted)
+                    #color_def = np.array(fc.dec_to_rgb(colors.to_rgb('white'))).tolist(), np.arrayfc.dec_to_rgb(colors.to_rgb('teal')).tolist(),np.array(fc.dec_to_rgb(colors.to_rgb('darkred')).tolist(),np.array(fc.dec_to_rgb(colors.to_rgb('white')).tolist()
+                    if number_of_genes_plotted > 0:
+                        rounds = int(np.ceil(np.shape(heatmap_data)[0]/50))
+                        for r_id in range(0,rounds):
+                            heatmap_data_sel = heatmap_data.iloc[50*r_id:50*(r_id+1), ]
+                            plot_heatmap_genelist(heatmap_data_sel, r_id, mode, DF_red_all, genelist_name,opt_genes_to_show,opt_save, path_results,opt_add_proteomics)
+                
+        return (number_of_genes_total, number_of_genes_plotted)
 
-def plot_heatmap_genelist(heatmap_data, r_id, mode, DF_red_all, genelist_name,opt_genes_to_show,opt_save, path_results):
-    
+def plot_heatmap_genelist(heatmap_data, r_id, mode, DF_red_all, genelist_name,opt_genes_to_show,opt_save, path_results,opt_add_proteomics):
     if mode == 'p-value':
         new_cmap = build_custom_continuous_cmap(np.array(dec_to_rgb(colors.to_rgb('teal'))).tolist(),
                                                 np.array(dec_to_rgb(colors.to_rgb('white'))).tolist(),
@@ -2083,14 +2211,18 @@ def plot_heatmap_genelist(heatmap_data, r_id, mode, DF_red_all, genelist_name,op
     
     
     if mode == 'p-value':
-        ax = sns.heatmap(heatmap_data.transpose(), yticklabels=1, xticklabels=1, vmin = -1, vmax = 1, cmap = new_cmap, square=True, cbar_kws={'ticks' : [-1,-0.9,-0.8,0,0.8,0.9,1],'label': 'adjusted ' +mode}, mask=heatmap_data.transpose().isnull())
+        ax = sns.heatmap(heatmap_data.transpose(), yticklabels=1, xticklabels=1, vmin = -1, vmax = 1, cmap = new_cmap, square=True, cbar_kws={'ticks' : [-1,-0.9,-0.8,0,0.8,0.9,1],'label': 'signed adjusted ' +mode}, mask=heatmap_data.transpose().isnull())
     else:
         max_LFC_abs = np.max([np.abs(DF_red_all['log2FoldChange'].min()), np.abs(DF_red_all['log2FoldChange'].max())])
         ax = sns.heatmap(heatmap_data.transpose(), yticklabels=1, xticklabels=1, vmin = (-1)*max_LFC_abs, vmax = max_LFC_abs, cmap = new_cmap, square=True, mask=heatmap_data.transpose().isnull(),cbar_kws={'ticks' : [(-1)*max_LFC_abs,0,max_LFC_abs],'label': mode})
     ax.figure.axes[-1].yaxis.label.set_size(12)
-    ax.axhline(sum(heatmap_data.columns.str.startswith('Exc')),c="grey",linewidth=1)
-    ax.axhline(sum(heatmap_data.columns.str.startswith('Exc'))+sum(heatmap_data.columns.str.startswith('Inh')),c="grey",linewidth=1)
-    
+    if opt_add_proteomics:
+        ax.axhline(sum(heatmap_data.columns.str.startswith('Prot')),c="black",linewidth=1)
+        ax.axhline(sum(heatmap_data.columns.str.startswith('Prot'))+sum(heatmap_data.columns.str.startswith('Exc')),c="grey",linewidth=1)
+        ax.axhline(sum(heatmap_data.columns.str.startswith('Prot'))+sum(heatmap_data.columns.str.startswith('Exc'))+sum(heatmap_data.columns.str.startswith('Inh')),c="grey",linewidth=1)
+    else:
+        ax.axhline(sum(heatmap_data.columns.str.startswith('Exc')),c="grey",linewidth=1)
+        ax.axhline(sum(heatmap_data.columns.str.startswith('Exc'))+sum(heatmap_data.columns.str.startswith('Inh')),c="grey",linewidth=1)
     
     if np.shape(heatmap_data)[0]>30:
         plt.yticks(fontsize=7)
@@ -2100,7 +2232,7 @@ def plot_heatmap_genelist(heatmap_data, r_id, mode, DF_red_all, genelist_name,op
         plt.xticks(fontsize=10)
             
     if mode == 'p-value':
-        ax.collections[0].colorbar.set_ticklabels(['0 (down)','0.1','0.2','1','0.2','0.1','0 (up)'])
+        ax.collections[0].colorbar.set_ticklabels(['0 (down)','-0.1','-0.2','-1 or 1','0.2','0.1','0 (up)'])
     ax.set_title(genelist_name, size=12)
     #Below 3 lines remove default labels
     ax.set_xlabel('Gene in ' + genelist_name, fontsize=12)
@@ -2115,8 +2247,8 @@ def plot_heatmap_genelist(heatmap_data, r_id, mode, DF_red_all, genelist_name,op
     plt.close()
     plt.clf() 
 
-def plot_percentage_genes_in_list_and_DEG_for_range_of_cutoffs(path_project, DF_DEG, opt_par, qval_cutoff_range, path_results_long, opt_save): 
-    P_genes, genelist_names = get_percentage_genes_in_list_and_DEG_for_range_of_cutoffs(path_project, DF_DEG, opt_par, qval_cutoff_range)
+def plot_percentage_genes_in_list_and_DEG_for_range_of_cutoffs(gene_matrix_file, DF_DEG, opt_par, qval_cutoff_range, path_results_long, opt_save): 
+    P_genes, genelist_names = get_percentage_genes_in_list_and_DEG_for_range_of_cutoffs(gene_matrix_file, DF_DEG, opt_par, qval_cutoff_range)
     #define colors:
     cmap = plt.get_cmap('autumn')
     colors = cmap(np.linspace(0, 1, len(qval_cutoff_range)))
@@ -2159,7 +2291,6 @@ def plot_log2FC_per_CT(df_DESeq2_all_genes,alpha_val,n_clusters,path_filtered_da
     #add short CT labels
     nan = np.nan
     #get short ct names
-    df_DESeq2_all_genes['celltype'] = df_DESeq2_all_genes['celltype'].str.replace('_',' ')
     df_DESeq2_all_genes = get_short_CT_names(df_DESeq2_all_genes,"celltype")
 
     #make sure CT are correctly ordered
@@ -2167,8 +2298,8 @@ def plot_log2FC_per_CT(df_DESeq2_all_genes,alpha_val,n_clusters,path_filtered_da
         CTs_sorted = get_CT_order(n_clusters,path_filtered_data,True)
     else:
         CTs_sorted = np.unique(df_DESeq2_all_genes['celltype']).tolist()
-    #
-        #otherwise names don't match
+    
+    #otherwise names don't match
     df_DESeq2_all_genes=df_DESeq2_all_genes.sort_values('celltype_short', key=make_sorter(CTs_sorted))
 
     #ax = sns.boxplot(y=df_DESeq2_all_genes['log2FoldChange'],x=df_DESeq2_all_genes['celltype'],color='lightgray',linewidth=1,flierprops = dict(markerfacecolor = '1', markersize = 3,marker='o'))
@@ -2275,8 +2406,7 @@ def plot_cells_per_donor_for_each_cell_type_cluster(df,df_donor_disease,df_aggre
     plt.close(fig)
     plt.clf()    
 
-
-def plot_number_of_deregulated_genes(DF_DEG_results,shrinkage_method,opt_save,path_results,opt_DEG_method,add_figure_str,option,n_cl, path_data,add_str,add_str_pagoda,opt_celltype_groups,alpha_val,path_filtered_data,gene_matrix_file,n_clusters,opt_angel_plot):
+def plot_number_of_deregulated_genes(DF_DEG_results,shrinkage_method,opt_save,path_results,option,n_cl,path_output,path_loom_data,add_str,add_str_pagoda,opt_celltype_groups,alpha_val,path_filtered_data,gene_matrix_file,opt_angel_plot):
     # to do: distinguish in protein coding and non-protein coding
     if option == 'vs_number_cells':
         plt = loadPltSettings(15,35)
@@ -2291,44 +2421,47 @@ def plot_number_of_deregulated_genes(DF_DEG_results,shrinkage_method,opt_save,pa
     #fig, axes = plt.subplots(3,  1, figsize=(20,10), sharex=True) 
     #fig.subplots_adjust(hspace = .3, wspace = 0.1)  
     if np.shape(DF_DEG_results)[0]>0:
-        if opt_DEG_method == 'Wilcoxon':
-            DF_number = get_number_of_deregulated_genes(DF_DEG_results, 'logfoldchanges', 'Cell type', 'names', n_cl, path_filtered_data)
-        elif opt_DEG_method=='DESeq2':
-            if 'shrinkage' in DF_DEG_results.columns:
-                if ('Unnamed: 0' in DF_DEG_results.columns):
-                    DF_DEG_results[["genes","ensgid"]] = DF_DEG_results["Unnamed: 0"].str.split(pat='_',n=1,expand=True)
-                    DF_DEG_results.drop(columns=['Unnamed: 0'],inplace=True)
-                DF_number = get_number_of_deregulated_genes(DF_DEG_results[DF_DEG_results['shrinkage']==shrinkage_method].copy(), 'log2FoldChange', 'celltype', 'genes', n_cl, path_filtered_data)
-                if option != 'vs_number_cells':
-                    DF_number = get_short_CT_names(DF_number.reset_index(),'celltype')
-                    DF_number.set_index("celltype_short",inplace = True)
-                    DF_number.index.name = 'Cell type'
-                    #DF_number.drop(columns = ["celltype"],inplace=True)
+        if 'shrinkage' in DF_DEG_results.columns:
+            if ('Unnamed: 0' in DF_DEG_results.columns):
+                DF_DEG_results[["genes","ensgid"]] = DF_DEG_results["Unnamed: 0"].str.split(pat='_',n=1,expand=True)
+                DF_DEG_results.drop(columns=['Unnamed: 0'],inplace=True)
+            if n_cl != 3:
+                DF_number = get_number_of_deregulated_genes(DF_DEG_results[DF_DEG_results['shrinkage']==shrinkage_method].copy(), 'log2FoldChange', 'celltype_short', 'genes', n_cl, path_filtered_data)
             else:
-                # if 'celltype_name' in DF_DEG_results.columns:
-                #     ct_col = 'celltype_name'
-                # else:
-                if "celltype" in DF_DEG_results.columns:
-                    ct_col = "celltype" #'celltype_names'
-                elif "celltype_names" in DF_DEG_results.columns:
-                    ct_col = "celltype_names"
-                else:
-                    ct_col = "no clue"
-                DF_number = get_number_of_deregulated_genes(DF_DEG_results, 'log2FoldChange', ct_col, 'Gene', n_cl, path_filtered_data)
-                if option != 'vs_number_cells':
-                    DF_number = get_short_CT_names(DF_number.reset_index(),ct_col)
-                    DF_number.set_index(ct_col+"_short",inplace = True)
-                    DF_number.index.name = ct_col
-                    DF_DEG_results[["genes","ensgid"]] = DF_DEG_results["Gene"].str.split(pat='_',n=1,expand=True)
-                    DF_DEG_results_detailed = get_gene_type_for_deregulated_genes(DF_DEG_results, 'log2FoldChange', gene_matrix_file, ct_col)
-                    DF_DEG_results_detailed = get_short_CT_names(DF_DEG_results_detailed.reset_index(),ct_col)
-                    DF_DEG_results_detailed.set_index(ct_col+"_short",inplace = True)
-                    #plot_donut_chart_DEGs(DF_DEG_results_detailed,opt_save, path_results,opt_DEG_method,shrinkage_method, option,opt_celltype_groups,add_figure_str, alpha_val,n_clusters,path_filtered_data)
-                    plot_detailed_stacked_bar_DEGs(DF_DEG_results_detailed,opt_save, path_results,opt_DEG_method,shrinkage_method, option,opt_celltype_groups,add_figure_str, alpha_val,n_clusters,path_filtered_data)
+                DF_number = get_number_of_deregulated_genes(DF_DEG_results[DF_DEG_results['shrinkage']==shrinkage_method].copy(), 'log2FoldChange', 'celltype', 'genes', n_cl, path_filtered_data)
 
-        else: 
-            print("DEG_method "+opt_DEG_method+" is not specified!")
-        DF_number.index = DF_number.index.str.replace('_',' ')
+            if option != 'vs_number_cells':
+                if n_cl == 3:
+                    DF_number = get_short_CT_names(DF_number.reset_index(),'celltype')
+                DF_number.set_index("celltype_short",inplace = True)
+                DF_number.index.name = 'Cell type'
+                #DF_number.drop(columns = ["celltype"],inplace=True)
+        else:
+            # if 'celltype_name' in DF_DEG_results.columns:
+            #     ct_col = 'celltype_name'
+            # else:
+            if "celltype_short" in DF_DEG_results.columns and n_cl != 3:
+                ct_col = "celltype_short"
+            elif "celltype" in DF_DEG_results.columns:
+                ct_col = "celltype" #'celltype_names'
+            elif "celltype_names" in DF_DEG_results.columns:
+                ct_col = "celltype_names"
+            else:
+                ct_col = "no clue"
+            DF_number = get_number_of_deregulated_genes(DF_DEG_results, 'log2FoldChange', ct_col, 'Gene', n_cl, path_filtered_data)
+            if option != 'vs_number_cells':
+                if n_cl == 3:
+                    DF_number = get_short_CT_names(DF_number.reset_index(),ct_col)
+                    DF_number.set_index("celltype_short",inplace = True)
+                    DF_number.index.name = "celltype_short"
+                DF_DEG_results[["genes","ensgid"]] = DF_DEG_results["Gene"].str.split(pat='_',n=1,expand=True)
+                DF_DEG_results_detailed = get_gene_type_for_deregulated_genes(DF_DEG_results, 'log2FoldChange', gene_matrix_file, ct_col,"Gene_short")
+                DF_DEG_results_detailed = get_short_CT_names(DF_DEG_results_detailed.reset_index(),ct_col)
+                DF_DEG_results_detailed.set_index("celltype_short",inplace = True)
+                #plot_donut_chart_DEGs(DF_DEG_results_detailed,opt_save, path_results,opt_DEG_method,shrinkage_method, option,opt_celltype_groups,add_figure_str, alpha_val,n_clusters,path_filtered_data)
+                plot_detailed_stacked_bar_DEGs(DF_DEG_results_detailed,opt_save, path_results,shrinkage_method, option,opt_celltype_groups,option, alpha_val,n_cl,path_filtered_data)
+
+        #DF_number.index = DF_number.index.str.replace('_',' ')
         if option == 'vs_celltypes':
             #remove underscore in Cell type names in DF_number
             if opt_angel_plot and n_cl==16:
@@ -2361,25 +2494,32 @@ def plot_number_of_deregulated_genes(DF_DEG_results,shrinkage_method,opt_save,pa
                 #DF_DEG_results_down.set_index(['Cell type','names']).count(level='Cell type')['scores'].sort_values().plot(kind='bar',title='Downregulated genes',ylabel='Genes',color='sandybrown',ax=axes[2])
         elif option == 'vs_number_cells':
             filename_DF_number = "DF_number_cells_"+str(n_cl)+"_number_DEGs_"+str(alpha_val).replace('.','')+".csv"
-            if os.path.isfile(path_data+filename_DF_number):
-                DF_number = pd.read_csv(path_data+filename_DF_number,index_col=0)
+            if os.path.isfile(path_output+filename_DF_number):
+                DF_number = pd.read_csv(path_output+filename_DF_number,index_col=0)
             else:
                 os.chdir(path_filtered_data)
                 loom_filename = "Samples_"+opt_celltype_groups[:5]+add_str+add_str_pagoda+"_TH_and_D_adj__filtered_and_CT_annotated_and_CT_clustered.loom"
                 n_cells=[]
-                with loompy.connect(loom_filename) as D:
+                with loompy.connect(path_loom_data + loom_filename, validate=False) as D:
                     #add number of cells for each cluster
                     if n_cl == 3:   
                         CT_list = DF_number.index.tolist()#['Excitatory','Inhibitory','NonNeuronal']
                         cluster_str = 'cluster_15CTs'
                     else:
+                        if n_cl==16:
+                            n_cl=15
                         CT_list = np.unique(D.ca['cluster_name_'+str(n_cl)+'CTs'])
                         cluster_str = 'cluster_name_'+str(n_cl)+'CTs'
                     CT_list = [ct for ct in CT_list if ct != "none (removed)"]
+                    #get short cell type names
+                    DF_CTs = get_short_CT_names(pd.DataFrame({"celltype":CT_list}),'celltype')
+                    CT_list = DF_CTs["celltype_short"].tolist()
                     #DF_number = pd.DataFrame(data={"celltype":CT_list.tolist()})
                     DF_number['Number of cells'] = 0
                     #DF_number.set_index("celltype",inplace=True)
-                    
+                    if n_cl!=3:
+                        CT_array_loom = get_short_CT_names(pd.DataFrame({"celltype":D.ca[cluster_str]}),'celltype')
+                    #something gets mixed up here --> continue fixing!!
                     for ct in CT_list:
                         if ct != "none (removed)":
                             if ct not in DF_number.index.tolist():
@@ -2389,18 +2529,17 @@ def plot_number_of_deregulated_genes(DF_DEG_results,shrinkage_method,opt_save,pa
                             if n_cl==3:
                                 n_cells = np.count_nonzero(fnmatch.filter(D.ca[cluster_str],ct.split(" ")[0]+'*'))
                             else:
-                                n_cells = np.count_nonzero(fnmatch.filter(D.ca[cluster_str],ct))
+                                n_cells = np.count_nonzero(fnmatch.filter(CT_array_loom["celltype_short"],ct))
                             #matche entry in data frame
                             DF_number.loc[ct,'Number of cells'] = n_cells
                     #lws = [2,1,1]
                     #colors={'total':'black',"down-regulated":'darkred',"up-regulated":'teal'}
                     #ax = DF_number[['Number of cells','total','up-regulated','down-regulated']].plot(x= 'Number of cells', y= ['total','up-regulated','down-regulated'], style = ['o','x','+'], ylabel="Number of DEGs")
-                DF_number = get_short_CT_names(DF_number.reset_index(),"celltype")
-                DF_number.set_index("celltype_short",inplace = True)
-                DF_number.to_csv(path_data+filename_DF_number)
+                #DF_number.set_index("celltype_short",inplace = True)
+                DF_number.to_csv(path_output+filename_DF_number)
 
             DF_number = DF_number.reset_index()#.merge(colors, on="celltype").set_index("index")
-            DF_number = add_CT_colors_to_DF(DF_number,path_filtered_data,True,n_cl)
+            DF_number = add_CT_colors_to_DF(DF_number,path_filtered_data,True,n_cl,True)
             color_dict = DF_number.set_index("celltype_short")["color"].to_dict()
             f, ax = plt.subplots(figsize=(7,4))
             ax.ticklabel_format(style='plain', axis='both')
@@ -2434,7 +2573,7 @@ def plot_number_of_deregulated_genes(DF_DEG_results,shrinkage_method,opt_save,pa
                 os.makedirs(path)    
             if opt_angel_plot:
                 add_str = "_angel"        
-            plt.savefig(path+opt_DEG_method+'_'+shrinkage_method+'_num_dereg_genes_'+option+'_'+opt_celltype_groups+'_'+add_figure_str+str(alpha_val).replace('.','_')+add_str+'.pdf', bbox_inches='tight')
+            plt.savefig(path+shrinkage_method+'_num_dereg_genes_'+option+'_'+opt_celltype_groups+'_'+option+str(alpha_val).replace('.','_')+add_str+'.pdf', bbox_inches='tight')
         plt.close()
         plt.clf() 
 
@@ -2862,14 +3001,14 @@ def plot_PCA_of_pseudocounts_for_ct_and_selected_genes(aggr_counts_ct_i,ct_id,ct
 
         return ax_expVar,ax_pc1_2,r_id,c_id
 
-def plot_detailed_stacked_bar_DEGs(DF_DEG_results_detailed,opt_save, path_results,opt_DEG_method,shrinkage_method, option,opt_celltype_groups,add_figure_str, alpha_val,n_clusters,path_filtered_data):
+def plot_detailed_stacked_bar_DEGs(DF_DEG_results_detailed,opt_save, path_results,shrinkage_method, option,opt_celltype_groups,add_figure_str, alpha_val,n_clusters,path_filtered_data):
     DF_DEG_results_detailed = DF_DEG_results_detailed.reset_index(drop=False).sort_values(by="total",ascending=False)
     if "celltype_short" in DF_DEG_results_detailed.columns:
         DF_DEG_results_detailed.set_index(keys="celltype_short",inplace=True)
     elif "celltype_names_short" in DF_DEG_results_detailed.columns:
         DF_DEG_results_detailed.set_index(keys="celltype_names_short",inplace=True)
     DF_DEG_results_detailed.index = DF_DEG_results_detailed.index.str.replace('_',' ')
-    filename_fig = opt_DEG_method+'_'+shrinkage_method+'_num_dereg_genes_'+option+'_'+opt_celltype_groups+'_'+add_figure_str+str(alpha_val).replace('.','_')+'_gene_type.pdf'
+    filename_fig = shrinkage_method+'_num_dereg_genes_'+option+'_'+opt_celltype_groups+'_'+add_figure_str+str(alpha_val).replace('.','_')+'_gene_type.pdf'
     plot_detailed_stacked_bar(DF_DEG_results_detailed,opt_save,path_results,filename_fig)
 
 def plot_detailed_stacked_bar(DF_results_detailed,opt_save,path_results,filename_fig):
@@ -2891,64 +3030,30 @@ def plot_detailed_stacked_bar(DF_results_detailed,opt_save,path_results,filename
         plt.close()
         plt.clf() 
 
-def plot_DEGs_CT_overlap_as_upset(DF_DESeq2,opt_DEG_method,opt_save,path_results,aggregation_method,add_str,alpha_val):
+def plot_DEGs_CT_overlap_as_upset(DF_DESeq2,opt_save,path_results,aggregation_method,add_str,alpha_val):
     #get short CT names
-    DF_DESeq2 = get_short_CT_names(DF_DESeq2,"celltype_names")
+    DF_DESeq2 = get_short_CT_names(DF_DESeq2,"celltype")
     if alpha_val < 0.2:
         min_subset_size=3
     else:
         min_subset_size=7
     if np.shape(DF_DESeq2)[0]>0:
-        if opt_DEG_method == 'Wilcoxon':
-            columns = ['Cell type', 'names']
-            #add deregulation column
-            DF_DESeq2.loc[(DF_DESeq2.padj>alpha_val),'deregulation']='none'
-            DF_DESeq2.loc[(DF_DESeq2.padj<=alpha_val) & (DF_DESeq2.logfoldchanges>0),'deregulation']='up'
-            DF_DESeq2.loc[(DF_DESeq2.padj<=alpha_val) & (DF_DESeq2.logfoldchanges<0),'deregulation']='down'
-        elif opt_DEG_method=='DESeq2':
-            if 'shrinkage' in DF_DESeq2.columns:
-                if 'celltype_names_short' in DF_DESeq2.columns:
-                    columns = ['celltype_names_short', 'genes']
-                elif 'celltype_name_short' in DF_DESeq2.columns:
-                    columns = ['celltype_name_short', 'genes']
-                elif 'celltype_name' in DF_DESeq2.columns:
-                    columns = ['celltype_name', 'genes']
-                elif 'celltype_names' in DF_DESeq2.columns:
-                    columns = ['celltype_names', 'genes']
-                else:
-                    columns = ['celltype', 'genes']
-            else:
-                if 'celltype_names_short' in DF_DESeq2.columns:
-                    columns = ['celltype_names_short', 'Gene']
-                else:
-                    columns = ['celltype_names', 'Gene']
-            #add deregulation column
-            DF_DESeq2.loc[(DF_DESeq2.padj>alpha_val),'deregulation']='none'
-            DF_DESeq2.loc[(DF_DESeq2.padj<=alpha_val) & (DF_DESeq2.log2FoldChange>0),'deregulation']='up'
-            DF_DESeq2.loc[(DF_DESeq2.padj<=alpha_val) & (DF_DESeq2.log2FoldChange<0),'deregulation']='down'
-            
-            DF_DESeq2[columns[0]] = DF_DESeq2[columns[0]].str.replace("_"," ")
-        else: 
-            print("DEG_method "+opt_DEG_method+" is not specified!")
+        columns = ['celltype_short', 'Gene']
+        #add deregulation column
+        DF_DESeq2.loc[(DF_DESeq2.padj>alpha_val),'deregulation']='none'
+        DF_DESeq2.loc[(DF_DESeq2.padj<=alpha_val) & (DF_DESeq2.log2FoldChange>0),'deregulation']='up'
+        DF_DESeq2.loc[(DF_DESeq2.padj<=alpha_val) & (DF_DESeq2.log2FoldChange<0),'deregulation']='down'
         
         reg_str = ['up','down','all_seperately','all_together']
         colors = ['darkred','teal','black','black']
         for i,r_str in enumerate(reg_str):
             if r_str=='all_seperately':
-                DF_DESeq2[columns[0]] = DF_DESeq2[columns[0]]+ ' ' + DF_DESeq2['deregulation']
-                DF_sel = DF_DESeq2.copy()
+                DF_sel = DF_DESeq2[DF_DESeq2['deregulation']!="none"].copy()
+                DF_sel[columns[0]] = DF_sel[columns[0]]+ ' ' + DF_sel['deregulation']
             elif r_str=='all_together':
-                DF_sel = DF_DESeq2.copy()
+                DF_sel = DF_DESeq2[DF_DESeq2['deregulation']!="none"].copy()
                 #put up and down together:
-                CTs = DF_sel['celltype_names'].unique().tolist()
-                CTs_raw = np.unique([item.split(' up', 1)[0] for item in CTs if item.endswith(' up')] + [item.split(' down', 1)[0] for item in CTs if item.endswith(' down')]).tolist()
-                #sum up up- and down-reg:
-                for ct in CTs_raw:
-                    if ct+' up' in CTs:
-                        DF_sel.loc[DF_sel.celltype_names==ct+' up','celltype_names'] = ct
-                    if ct+' down' in CTs:
-                        DF_sel.loc[DF_sel.celltype_names==ct+' down','celltype_names'] = ct
-                CTs=CTs_raw     
+                CTs = DF_sel['celltype_short'].unique().tolist()
             else:
                 DF_sel = DF_DESeq2[DF_DESeq2['deregulation']==r_str][columns].copy()
             if np.shape(DF_sel)[0]>0:
@@ -2979,7 +3084,7 @@ def plot_DEGs_CT_overlap_as_upset(DF_DESeq2,opt_DEG_method,opt_save,path_results
                     isExist = os.path.exists(path)
                     if not isExist:
                         os.makedirs(path)
-                    plt.savefig(path+'upset_'+r_str+'_regulated_DEGs_CT_overlap'+opt_DEG_method+'_'+aggregation_method+add_str+'_'+str(alpha_val).replace('.','_')+'.pdf', bbox_inches='tight')
+                    plt.savefig(path+'upset_'+r_str+'_regulated_DEGs_CT_overlap_'+aggregation_method+add_str+'_'+str(alpha_val).replace('.','_')+'.pdf', bbox_inches='tight')
                 plt.close()
                 plt.clf() 
         print(DF_sel)
@@ -3011,7 +3116,7 @@ def plot_number_pathways_per_gene(DF_sign_pw_per_gene, opt_save, folder,n_cluste
         DF_sign_pws_per_gene_up = DF_sign_pws_per_gene_up.rename(columns={'Number_significant_pathways_per_gene': 'Number_significant_pathways_per_up-regulated_gene'})
         DF_sign_pws_per_gene_down = DF_sign_pws_per_gene_down.rename(columns={'Number_significant_pathways_per_gene': 'Number_significant_pathways_per_down-regulated_gene'})
         DF = pd.concat([DF_sign_pws_per_gene_up,DF_sign_pws_per_gene_down], axis=1)
-        CT_color_df = get_CT_colors_as_df(n_clusters,path_colors)
+        CT_color_df = get_CT_colors_as_df(n_clusters,path_colors,False)
         CT_color_df = CT_color_df.set_index('celltype')
         df = pd.concat([DF, CT_color_df], axis=1)
         df.reset_index(inplace=True)
@@ -3103,60 +3208,77 @@ def plot_correlation_DEG_pvalues_with_genelist_p_or_qvalues(DF_DEG,genelist,gene
     else:
         string1 = 'p-value '
     min_number_pairs_to_plot_corr = 20
+    corr_spearman_up=np.NaN
+    corr_spearman_down=np.NaN
+    n_datapoints_up=np.NaN
+    n_datapoints_down=np.NaN
     #check if qvalues empty:
     if len(p_or_qvalues)>0:
         #filter DF for genes in genelist
         #make sure order of genes is the same
         #best way: create another dataframe and merge them 
         DF = get_genelist_DEG_DF(DF_DEG, genelist, genelist_name, p_or_qvalues, string1)
-        #change color for p_val < 0.5 and > 0.05 and q-val < 0.5 to black:
-        DF.loc[(DF['padj']>alpha_val) & (DF['padj']<cutoff_q_p),'Color_sign'] = 'black'
-        DF.loc[(DF[string1+genelist_name]<cutoff_q_p) & (DF['padj']>alpha_val), 'Color_sign'] = 'black'
-        # DF.loc[(DF['padj']>alpha_val) & (DF['padj']<cutoff_q_p) & (DF[string1+genelist_name]<cutoff_q_p),'Color_sign'] = 'black'
-        #treat up- and downregulated genes separately
-        reg_str = ['up','down']
-        for i,r in enumerate(reg_str):
-            if r=='up':
-                DF_r = DF[DF['log2FoldChange']>0].copy()
-            else:
-                DF_r = DF[DF['log2FoldChange']<0].copy()
-            
-            #plot qvalues vs  p values
-            if len(p_or_qvalues)>min_number_pairs_to_plot_corr:
-                ax = DF_r.plot(x='-log10(padj)', y='-log10('+string1+genelist_name+')', kind= 'scatter', c = 'Color_sign', edgecolors=[0, 0, 0, 0], s=3)
-                ax.set_xlabel('-log10(adjusted p-values DEG analysis)')
-                ax.set_xlim([0,1])
-                ax.set_ylim([-0.15,1.05])
-                ax.invert_xaxis()
-                ax.invert_yaxis()
-                #label genes with sign pvalues or qvalues with gene name
-                for p, q in DF_r[(DF_r['Color_sign']!='grey') & (DF_r['Color_sign']!='black')][['padj',string1+genelist_name]].iterrows():
-                    ax.annotate(p, q, fontsize=8)
-            #calculate correlation
-            # DF_sel = DF_r[DF_r['Color_sign']!='grey'].copy()
-            if r=='up':
-                n_datapoints_up = len(DF_r)
-                corr_spearman_up = np.corrcoef(x=DF_r['-log10(padj)'],y=DF_r['-log10('+string1+genelist_name+')'])[0,1]
+        if len(DF)>10:
+            #change color for p_val < 0.5 and > 0.05 and q-val < 0.5 to black:
+            DF.loc[(DF['padj']>alpha_val) & (DF['padj']<cutoff_q_p),'Color_sign'] = 'black'
+            DF.loc[(DF[string1+genelist_name]<cutoff_q_p) & (DF['padj']>alpha_val), 'Color_sign'] = 'black'
+            # DF.loc[(DF['padj']>alpha_val) & (DF['padj']<cutoff_q_p) & (DF[string1+genelist_name]<cutoff_q_p),'Color_sign'] = 'black'
+            #treat up- and downregulated genes separately
+            reg_str = ['up','down']
+            for i,r in enumerate(reg_str):
+                if r=='up':
+                    DF_r = DF[DF['log2FoldChange']>0].copy()
+                else:
+                    DF_r = DF[DF['log2FoldChange']<0].copy()
+                
+                #plot qvalues vs  p values
                 if len(p_or_qvalues)>min_number_pairs_to_plot_corr:
-                    ax.text(0.75,-0.1,"rho = "+str(np.round(corr_spearman_up,3)),fontsize=12)
-            else:
-                n_datapoints_down = len(DF_r)
-                corr_spearman_down = np.corrcoef(x=DF_r['-log10(padj)'],y=DF_r['-log10('+string1+genelist_name+')'])[0,1]
-                if len(p_or_qvalues)>min_number_pairs_to_plot_corr:
-                    ax.text(0.75,-0.1,"rho = "+str(np.round(corr_spearman_down,3)),fontsize=12)
-                #perform correlation test and add result as text
-            if len(p_or_qvalues)>min_number_pairs_to_plot_corr and opt_save:
-                path=path_results+'figures/corr_with_lists/'
-                isExist = os.path.exists(path)
-                if not isExist:
-                    os.makedirs(path)
-                plt.savefig(path+CT_i.replace('-','_')+'_'+r+'_vs_'+genelist_name.replace('.','_')+'.pdf', bbox_inches='tight')
-                plt.close()
-                plt.clf()  
+                    ax = DF_r.plot(x='-log10(padj)', y='-log10('+string1+genelist_name+')', kind= 'scatter', c = 'Color_sign', edgecolors=[0, 0, 0, 0], s=3)
+                    ax.set_xlabel('-log10(adjusted p-values DEG analysis)')
+                    ax.set_xlim([0,1])
+                    ax.set_ylim([-0.15,1.05])
+                    ax.invert_xaxis()
+                    ax.invert_yaxis()
+                    #label genes with sign pvalues or qvalues with gene name
+                    for p, q in DF_r[(DF_r['Color_sign']!='grey') & (DF_r['Color_sign']!='black')][['padj',string1+genelist_name]].iterrows():
+                        ax.annotate(p, q, fontsize=8)
+                #calculate correlation
+                # DF_sel = DF_r[DF_r['Color_sign']!='grey'].copy()
+                corr_spearman_up,corr_spearman_down,n_datapoints_up, n_datapoints_down = calculate_correlation_DEG_pvalues_with_genelist_p_or_qvalues(DF_r,genelist_name,string1)
+
+                if r=='up':
+                    if len(p_or_qvalues)>min_number_pairs_to_plot_corr:
+                        ax.text(0.75,-0.1,"rho = "+str(np.round(corr_spearman_up,3)),fontsize=12)
+                else:
+                    if len(p_or_qvalues)>min_number_pairs_to_plot_corr:
+                        ax.text(0.75,-0.1,"rho = "+str(np.round(corr_spearman_down,3)),fontsize=12)
+                    #perform correlation test and add result as text
+                if len(p_or_qvalues)>min_number_pairs_to_plot_corr and opt_save:
+                    path=path_results+'figures/corr_with_lists/'
+                    isExist = os.path.exists(path)
+                    if not isExist:
+                        os.makedirs(path)
+                    plt.savefig(path+CT_i.replace('-','_')+'_'+r+'_vs_'+genelist_name.replace('.','_')+'.pdf', bbox_inches='tight')
+                    plt.close()
+                    plt.clf()  
+                
+                plot_violin_pvals_genelists(DF_r,r,genelist_name,alpha_val,CT_i,opt_save,path_results,string1)
             
-            plot_violin_pvals_genelists(DF_r,r,genelist_name,alpha_val,CT_i,opt_save,path_results,string1)
-        
         return(corr_spearman_up,corr_spearman_down,n_datapoints_up, n_datapoints_down)
+    
+def calculate_correlation_DEG_pvalues_with_genelist_p_or_qvalues(DF_r,genelist_name,string1):      
+    #calculate correlation
+    # DF_sel = DF_r[DF_r['Color_sign']!='grey'].copy()
+
+    n_datapoints_up = len(DF_r)
+    corr_spearman_up = np.corrcoef(x=DF_r['-log10(padj)'],y=DF_r['-log10('+string1+genelist_name+')'])[0,1]
+
+    n_datapoints_down = len(DF_r)
+    corr_spearman_down = np.corrcoef(x=DF_r['-log10(padj)'],y=DF_r['-log10('+string1+genelist_name+')'])[0,1]
+    #perform correlation test and add result as text
+            
+    return(corr_spearman_up,corr_spearman_down,n_datapoints_up, n_datapoints_down)
+
 
 def plot_violin_pvals_genelists(DF,reg_str,genelist_name,alpha_val,CT_i,opt_save,path_results,string1):
     DF['Group'] = ['False']*np.shape(DF)[0]
@@ -3175,8 +3297,8 @@ def plot_violin_pvals_genelists(DF,reg_str,genelist_name,alpha_val,CT_i,opt_save
         ax1 = sns.violinplot(x="Group",y="-log10(padj)",data=DF,title=genelist_name,cut=0)
     #plt.setp(ax1.collections, alpha=.3)
     for art in ax1.get_children():
-        if isinstance(art, PolyCollection):
-            art.set_alpha(0.3)
+        #if isinstance(art, PolyCollection):
+        art.set_alpha(0.3)
 
     #for g, p in DF_s[['Group','padj']].iterrows():
     #    ax1.annotate(g, p, fontsize=8)
@@ -3197,6 +3319,8 @@ def plot_volcano(df_DESeq2_all_genes,CT_i,path_results,alpha_val,opt_save,annota
     #fig, ax = plt.subplots()
     if annotations=="very_small_pvals" or annotations=="small_pvals":
         df_DESeq2_all_genes.loc[df_DESeq2_all_genes['padj']>alpha_val,"Color_sign"] = "lightgrey"
+        df_DESeq2_all_genes.loc[np.logical_and(df_DESeq2_all_genes['padj']<=alpha_val,df_DESeq2_all_genes["log2FoldChange"]>0),"Color_sign"] = "darkred"
+        df_DESeq2_all_genes.loc[np.logical_and(df_DESeq2_all_genes['padj']<=alpha_val,df_DESeq2_all_genes["log2FoldChange"]<0),"Color_sign"] = "teal"
         ax = df_DESeq2_all_genes.plot(kind= 'scatter', x='log2FoldChange', y='negative_log10_padj', c="Color_sign",edgecolor='none', s=7, title = CT_i.replace('_',' '))
         #ax = df_DESeq2_all_genes.plot(kind= 'scatter', x='log2FoldChange', y='negative_log10_padj', c="Color_sign",edgecolor='none', s=7, title = CT_i.replace('_',' '))
     else:
@@ -3227,9 +3351,16 @@ def plot_volcano(df_DESeq2_all_genes,CT_i,path_results,alpha_val,opt_save,annota
                 #annotate everything true in column annotations
                 ax.annotate(k, v, fontsize=8)
     ax = remove_frame_keep_axes(ax)
+    CT_i_short = CT_i.replace("Inhibitory","Inh")
+    CT_i_short = CT_i_short.replace("Excitatory","Exc")
+    CT_i_short = CT_i_short.replace(" ","_")
+    CT_i_short = CT_i_short.replace("neurons","")
+    CT_i_short = CT_i_short.replace("Layer_","L")
+    CT_i_short = CT_i_short.replace("Oligodendrocyte_progenitor_cells","OPCs")
+    CT_i_short = CT_i_short.replace("Endothelial_and_mural_cells","E_M_cells")
     if opt_save:
         os.makedirs(path_results+'figures/volcano/', exist_ok=True)
-        plt.savefig(path_results+'figures/volcano/Volcano_plot_'+CT_i+'_'+str(alpha_val).replace('.','')+'.pdf', bbox_inches='tight')
+        plt.savefig(path_results+'figures/volcano/Volcano_plot_'+CT_i_short+'_'+str(alpha_val).replace('0.','')+'.pdf', bbox_inches='tight')
     plt.close()
     plt.clf() 
 
@@ -3261,9 +3392,9 @@ def plot_triangular_heatmaps(DF_sorted_filtered,path_info, options,n_cl,bg_str):
         GO_term_str = ['BP','MF','CC']
         for go_str in GO_term_str:
             #get GO term clustering:
-            rrvgo_info_strings = ['all','up','down']
+            rrvgo_info_strings = ['all']#['up','down']
             for rrvgo_info_str in rrvgo_info_strings:
-                rrvgo_filename = 'module_list_rrvgo_all_'+go_str+'_size_'+rrvgo_info_str+'.csv'
+                rrvgo_filename = 'reduced_terms_rrvgo_all_'+go_str+'_'+options["rrvgo_opt"]+'_'+rrvgo_info_str+'.csv'
                 if os.path.isfile(path_info["path_results_subdirectory"]+rrvgo_filename): 
                     module_info = pd.read_csv(path_info["path_results_subdirectory"]+rrvgo_filename)
                     plot_triangular_heatmap_rrvgo_modules(DF_sorted_filtered, module_info, go_str,options["opt_plot_rrvgo_modes"],options["p_val_cutoff"],options["opt_save"],path_info["path_results_subdirectory"], options["opt_proteomics"],options["opt_proteomics_up_and_down_sep"],n_cl, path_info["path_colors"], bg_str,rrvgo_info_str, options["opt_longread"])
@@ -3276,10 +3407,17 @@ def plot_triangular_heatmaps(DF_sorted_filtered,path_info, options,n_cl,bg_str):
         DF_sorted_p, num_cols = prepare_DF_for_plotting(DF_sorted_filtered,options["opt_aggregate_geneset_pvals_by_averaging"],options["index_cols"],options["p_val_cutoff"])
         for i_group,gr in enumerate(np.unique(DF_sorted_p.index.get_level_values('group'))):
             DF_tmp = DF_sorted_p.xs(gr,level = 'group')
+            if gr=='synaptic-gene-ontology':
+                #remove non-neuronal cells
+                DF_tmp = DF_tmp[DF_tmp.columns[np.logical_or(DF_tmp.columns.str.startswith("Exc"),DF_tmp.columns.str.startswith("Inh"))]]
+                num_cols = DF_tmp.columns.tolist()
+                #remove rows with non-sign in all cell types
+                # similar to this:DF_tmp[np.sum(DF_tmp<=ptions["p_val_cutoff"])!=0].index
             #TO DO: make sure all CTs are plotted no matter if all nan
-            DF_tmp.dropna(subset=num_cols,how='all')
-            #make sure all CTs are in heatmap always:
-
+            DF_tmp.dropna(subset=num_cols,how='all',inplace=True)
+            if gr=='synaptic-gene-ontology':
+                #make sure only rows with at least 1 sign value are kept
+                DF_tmp = DF_tmp[(DF_tmp <=options["p_val_cutoff"]).any(axis=1)]
             # sort pathways (rows) by sign signal per ct
             if np.shape(DF_tmp)[0]>1 and gr!='synaptic-gene-ontology':
                 df_tmp = DF_tmp
@@ -3290,7 +3428,7 @@ def plot_triangular_heatmaps(DF_sorted_filtered,path_info, options,n_cl,bg_str):
                 if gr=='synaptic-gene-ontology':
                     n_pws = 60 # higher max number of pathways to make them fit on one page
                 else:
-                    n_pws = 35
+                    n_pws = 100
                 #if too long break down in sets of 35 pathways:
                 if np.shape(DF_tmp)[0]>n_pws:
                     #print('size of '+gs_source+': '+str(np.shape(DF_p_no_nan)[0]))
@@ -3427,7 +3565,7 @@ def plot_triangular_heatmap_GSEA_pathways(DF_p,geneset_name,opt_save, results_pa
         elif geneset_name=='highlights':
             label_group_bar_table(ax, values[0], fs, opt_add_line=True, opt_swap_indexes=False)
         elif '_rrvgo' in geneset_name:
-            label_group_bar_table(ax, values[0], fs, opt_add_line=True, opt_swap_indexes=True, add_offset=0.6)
+            label_group_bar_table(ax, values[0], fs, opt_add_line=True, opt_swap_indexes=True, add_offset=2.0)#prev 0.6, 0.3 was more to the right
         elif opt_longread:
             if "proteomics" in results_path:
                 label_group_bar_table(ax, values[0], fs, opt_add_line=True, opt_swap_indexes=True, add_offset=2.3, max_label_length=np.max([max_len_label_0,max_len_label_1]))
@@ -3823,7 +3961,7 @@ def plot_triangular_heatmap_rrvgo_modules(DF_sorted_filtered, module_info, go_st
         
 
         #if too long break down in sets of n_pw_max pathways:
-        n_pw_max = 45
+        n_pw_max = 110
         if np.shape(DF_modules_red_to_two_indexes_no_nan)[0]>n_pw_max:
             #print('size of '+gs_source+': '+str(np.shape(DF_p_no_nan)[0]))
             n_rounds = int(np.ceil(np.shape(DF_modules_red_to_two_indexes_no_nan)[0]/n_pw_max))
@@ -3855,7 +3993,7 @@ def loadPltSettings(fontSize,markerSize):
     plt.rcParams['grid.alpha'] = 0
     plt.rcParams['font.size'] = fontSize
     plt.rcParams['axes.edgecolor'] ='black'
-    plt.rcParams['axes.facecolor'] ='black'#'white'
+    plt.rcParams['axes.facecolor'] ='white'#"black"
     plt.rcParams['axes.labelcolor'] = 'black'
     plt.rcParams['figure.edgecolor'] = 'white'
     plt.rcParams['figure.facecolor'] = 'white'
@@ -3922,6 +4060,19 @@ def calculate_percentage_random_DEGs(df_true,path_results_short,design_folder_st
     os.chdir(cp)
     return df_true, df_rand_sign
 
+def print_stats_volcano(DEGs_filtered,term,alpha_val):
+    number_genes_term = np.sum(DEGs_filtered[term]==True)
+    DEGs_tmp = DEGs_filtered[["ENSGID","log2FoldChange",term]][np.logical_and(DEGs_filtered["padj"]<=alpha_val,DEGs_filtered[term]==True)].copy()
+    number_genes_overlap = len(DEGs_tmp["ENSGID"].unique())
+    number_upregulated_DEGs = len(DEGs_tmp[DEGs_tmp["log2FoldChange"]>0]["ENSGID"].unique())
+    number_downregulated_DEGs = len(DEGs_tmp[DEGs_tmp["log2FoldChange"]<0]["ENSGID"].unique())
+    percentage_upreg_on_term = 100*(number_upregulated_DEGs/number_genes_term)
+    percentage_downreg_on_term = 100*(number_downregulated_DEGs/number_genes_term)
+    print("stats for term "+term+" :")
+    print("total number of genes: " + str(number_genes_overlap))
+    print("up-regulated DEGs: " + str(number_upregulated_DEGs) + ' ('+ str(round(percentage_upreg_on_term,2)) +'%)')
+    print("down-regulated DEGs: " + str(number_downregulated_DEGs)+ ' ('+ str(round(percentage_downreg_on_term,2)) +'%)')
+    print("###########################################")
 
 def dec_to_rgb(rgb_tuple_dec):
     r = rgb_tuple_dec[0]*255.0

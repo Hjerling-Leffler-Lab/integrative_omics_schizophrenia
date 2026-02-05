@@ -18,6 +18,7 @@ path_code = os.getcwd()
 sys.path.append(path_code)
 import utils as ut
 
+path_project = path_code.replace("script","")
 path_main = path_code.replace("5b_differential_gene_expression_analysis\\script","")
 
 opt_pagoda_filtering = True
@@ -47,7 +48,8 @@ for n_clusters in n_clusters_range:
     path_data,path_results = ut.get_paths(path_main,'DEG_ana_preparation',opt_aggregate_across) 
     
     if opt_aggregate_across=="cell types":
-        path_data = "D:/Documents/projects/SCZ_human_cortex/data/CT_clustered_loom_formatted_data_cellranger/15_CTs/"
+        path_data = path_project + "/data/CT_clustered_aggregated_data/Aggregated_data/"
+        #path_data = "D:/Documents/projects/SCZ_human_cortex/data/CT_clustered_loom_formatted_data_cellranger/15_CTs/"
         
     cl_str = '_'+str(n_clusters)+'_CTs'
     os.chdir(path_data)
@@ -73,7 +75,8 @@ for n_clusters in n_clusters_range:
         
         #aggregate across all cells 
         if opt_aggregate_across == "all":
-            path_data = "D:/Documents/projects/SCZ_human_cortex/data/filtered_loom_formatted_data_cellranger/"
+            path_data = path_main + '/4_data_integration_and_cell_type_annotation/output/'
+            #path_data = "D:/Documents/projects/SCZ_human_cortex/data/filtered_loom_formatted_data_cellranger/"
             loom_filename_all_CTs = "Samples_conos_cellranger_pagoda_TH_and_D_adj__filtered_and_CT_annotated_and_CT_clustered.loom"
             ct_csv_matrix_filename_all = 'Agg_counts_'+add_str_pagoda+'_TH_and_D_adj_filtered_all_'+opt_aggregation+'.csv'
             ct_csv_group_info_filename_all = 'G_info_'+add_str_pagoda+'_TH_and_D_adj_filtered_all_'+opt_aggregation+'.csv'

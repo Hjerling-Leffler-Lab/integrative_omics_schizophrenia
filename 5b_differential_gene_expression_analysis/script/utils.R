@@ -21,7 +21,7 @@ get_paths <- function(main_path,main_project_path,data_folder){
 
 get_settings <- function(opt_input_data){
   settings <- c()
-  if (opt_input_data=="GRN_modules_gprofiler_result"){
+  if (opt_input_data=="GRN_modules_gprofiler_result" | opt_input_data == "DEG_GSA_result_all_CTs"){
     settings$opt_up_and_down_sep = FALSE #
   } else if (opt_input_data=="Patient_clustering_genes_GSA_result" | opt_input_data=="GRN_modules_GSA_result" | opt_input_data=="all_GRN_modules_GSA_result"){
     settings$opt_up_and_down_sep = FALSE #
@@ -29,38 +29,39 @@ get_settings <- function(opt_input_data){
     settings$opt_up_and_down_sep = TRUE#FALSE #
   }
   
-  opt_with_MT_genes <- TRUE#FALSE # with or without mito dna genes
   opt_new_profiler_settings <- FALSE #TRUE
   settings$opt_metacell_settings <- "50_13_250" #"30_6_120"#
   
-  if (opt_input_data == "Patient_clustering_genes_GSA_result"){
-    settings$n_clusters_range = c('SCZ_cases')#,'whole_dataset','controls')
-    settings$min_overlap_range <- c(3)#c(3,5,10)
-    settings$background_folders <- c('cortex/','SnRNAseqDet/')
-    settings$opt_sim_based_on <- 'size' # 'scores'
-    #'all' for plotting pathways significant in any cell type together
-    settings$CT_groups <- c('all')
-  } else if (opt_input_data =="Patient_clustering_genes_GSEA_result"){
-    settings$n_clusters_range = c('controls','SCZ_cases','whole_dataset')
-    settings$min_overlap_range <- c(0)
-    settings$background_folders <- c('none/')
-    settings$opt_sim_based_on <- 'size' # 'scores'
-    #'all' for plotting pathways significant in any cell type together
-    settings$CT_groups <- c('all')
-  } else if (opt_input_data == "DEG_GSA_result"){ 
+  if (opt_input_data == "DEG_GSA_result"){ 
     settings$n_clusters_range <- c(16)#,37,3)
-    settings$sub_folders <- c('alpha3/')
+    settings$sub_folders <- c('alpha05/',"alpha1/","alpha3/")
     settings$min_overlap_range <- c(3)#c(3,5,10)
     settings$background_folders <- c('cortex/')#,'cortex_pc/','SnRNAseqDet/','SnRNAseqDet_pc/')
     settings$opt_sim_based_on <- 'size' # 'scores'
     #'all' for plotting pathways significant in any cell type together
-    settings$CT_groups <- c("Excitatory_Layer_5_6_IT_neurons_I","Excitatory_Layer_5_6_IT_neurons_II",
-                   "Excitatory_Layer_5_6_CT_and_NP_neurons","Excitatory_Layer_2_3_IT_neurons_I",
-                   "Excitatory_Layer_2_3_IT_neurons_II", "Excitatory_Layer_3_4_IT_neurons","Excitatory_Layer_3_6_IT_neurons",
-                   "Astrocytes","Endothelial_and_mural_cells","Microglial_cells","Oligodendrocyte_progenitor_cells","Oligodendrocytes",
-                   "Inhibitory_LAMP5_neurons","Inhibitory_PVALB_neurons","Inhibitory_SST_neurons","Inhibitory_VIP_neurons")                     
-    #old definition:                                        
-    #CT_groups <- c('all','Astrocytes', "Microglial_cells","Oligodendrocyte_progenitor_cells",'Neurons')
+    settings$CT_groups <- c("Excitatory_Layer_5_6_IT_neurons_I",
+                            "Excitatory_Layer_5_6_IT_neurons_II",
+                            "Excitatory_Layer_5_6_CT_and_NP_neurons",
+                            "Excitatory_Layer_2_3_IT_neurons_I",
+                            "Excitatory_Layer_2_3_IT_neurons_II", 
+                            "Excitatory_Layer_3_4_IT_neurons",
+                            "Excitatory_Layer_3_6_IT_neurons",
+                            "Astrocytes",
+                            "Endothelial_and_mural_cells",
+                            "Microglial_cells",
+                            "Oligodendrocyte_progenitor_cells",
+                            "Oligodendrocytes",
+                            "Inhibitory_LAMP5_neurons",
+                            "Inhibitory_PVALB_neurons",
+                            "Inhibitory_SST_neurons",
+                            "Inhibitory_VIP_neurons")                     
+  } else if (opt_input_data == "DEG_GSA_result_all_CTs"){
+    settings$n_clusters_range <- c(16)#,37,3)
+    settings$sub_folders <- c('alpha05/',"alpha1/","alpha3/")
+    settings$min_overlap_range <- c(3)#c(3,5,10)
+    settings$background_folders <- c('cortex/')#,'cortex_pc/','SnRNAseqDet/','SnRNAseqDet_pc/')
+    settings$opt_sim_based_on <- 'scores'#'size' # 
+    settings$CT_groups <- c("all") 
   } else if (opt_input_data == "GRN_modules_gprofiler_result"){ 
     #no modules as cell type populations are too small: "Endothelial_and_mural_cells","Excitatory_Layer_5_6_IT_neurons_II","Microglial_cells",
     settings$sub_folders <- c('norm_basic/')
@@ -183,7 +184,8 @@ get_metadata <- function(data_all, paths, filename_data_sample_info, filename_da
     names(NA_idx)<-NULL
     
     if (paths$results==''){
-      png(file=paste0(paths$results,"missing_data_in_metadata_per_variable.png"),width=600, height=550, units='mm', res=300)
+      pdf(file=paste0(paths$results,"missing_data_in_metadata_per_variable.pdf"), paper="A4")
+      #png(file=paste0(paths$results,"missing_data_in_metadata_per_variable.png"),width=600, height=550, units='mm', res=300)
       par(mfrow=c(1,1),mar=c(1,1,1,1)) 
       mice_plot <- aggr(metadata_sorted, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(metadata_sorted), cex.axis=0.45, gap=1, ylab=c("Missing data","Pattern"))
       dev.off()
@@ -295,25 +297,9 @@ load_count_data <- function(countData_filenames,colData_filenames,file_id,opt_ag
   return(list("data_obj", colData=colData, CC=CC, celltype=celltype, results_subfolder=results_subfolder))
 }
 
-#randomize order of group labels:
-get_randomized_group_labels <- function(group_labels_ordered, path_results, i){
-  file_name <- paste0(paste0(paste0(path_results,"group_labels_random_"),as.character(i)),".csv")
-  #check if this randomization already exists:
-  if (file.exists(file_name)){
-    group_labels_random_df <- read.csv(file = file_name)
-    # make sure the vector has the same length as group_labels_ordered:
-    group_labels_random_full <- group_labels_random_df$group_labels_random 
-    group_labels_random <- group_labels_random_full[1:length(group_labels_ordered)]
-  } else {
-    group_labels_random <- sample(group_labels_ordered)
-    #save the current random group labels:
-    write.csv(data.frame(group_labels_random,group_labels_ordered), file=file_name, row.names = FALSE)
-  }
-  return(group_labels_random)
-}
-
 #filter results dataframe for significant genes and add settings as columns
 get_significant_results <- function(R,res,alpha_val,sfe_type,shrinkage_type,celltype){
+  #browser()
   #remove nans:
   if (length(res$baseMean[!is.na(res$padj)])>0){
     if (shrinkage_type=='none'){
@@ -349,47 +335,6 @@ get_significant_results <- function(R,res,alpha_val,sfe_type,shrinkage_type,cell
   return(R)
 }
 
-plot_RUV_factor_correlation_with_metadata <- function(RUV_factors,metadata,results_path){
-  
-  RUV_factor_names <- colnames(RUV_factors)
-  corr_types <- c("pearson","spearman")
-  #merge data frames
-  RUV_factors$donor_ID_python <- rownames(RUV_factors)
-  Data <- merge(RUV_factors,metadata,by = "donor_ID_python")
-  #continuous variables:
-  var_cont <- c("Age" ,"PMI_h","p_cells_del_filt","mean_reads_per_umi","num_umi","num_reads","p_valid_barcodes","p_sequencing_saturation","p_genome_not_gene", "p_mapped_reads","p_unmapped_reads","mean_counts_per_barcode","std_counts_per_barcode","median_gpc")
-  n <- length(RUV_factor_names)
-  m <- length(var_cont)
-  for (corr_method in corr_types){
-    M_cor <- matrix(0,n,m)
-    for (f_id in seq(1,n)){
-      for (m_id in seq(1,m)){
-        print(var_cont[m_id])
-        M_cor[f_id,m_id] = cor(Data[RUV_factor_names[f_id]],Data[var_cont[m_id]],method=corr_method)
-      }
-    }
-    rownames(M_cor) <- RUV_factor_names
-    colnames(M_cor) <- var_cont
-    #plot corr as ellipses
-    pdf(file = paste0(results_path,as.character(length(RUV_factor_names)),"_RUV_factor_",corr_method,"_correlation_wih_metadata_continuous.pdf")) # The height of the plot in inches
-    print(corrplot(M_cor,method="ellipse",addCoef.col = 'black',tl.col = 'black'))
-    dev.off()
-  }
-  
-  #categorical variables:
-  browser()
-  var_cat <- c("Group","source","Sex","Library","antipsychotics", "mood_stabilizers","anti_depressants","health_status","drugs_of_abuse","nicotine_dependance","alcohol_dependance") #"ancestry_european"
-  m <- length(var_cat)
-  p <- list()
-  for (f_id in seq(1,n)){
-    eval(parse(text=paste0("Data %>% pivot_longer(cols = var_cat) %>% 
-      ggplot(aes(x=factor(value),y=",RUV_factor_names[f_id],")) + geom_boxplot() + facet_wrap(.~name,scales='free_x') + theme_bw() + xlab('metadata variables') + geom_jitter(pch=21,position = position_jitter(width = 0.2),show.legend = FALSE,alpha = 0.5)
-    ggsave(paste0(results_path,RUV_factor_names[f_id],'_boxplots_for_categorical_metadata.pdf'))")))
-  }
-  #pdf(file = paste0(results_path,as.character(length(RUV_factor_names)),"_RUV_factor_boxplots_for_categorical_metadata.pdf"))
-  #do.call(grid.arrange,p)
-  #dev.off()
-}
 
 #remove genes with low counts and store data in DDS object:
 get_filtered_data <- function(CC,colData,design_formula,path_xy_chr_list,p_samples_larger_10_counts){
@@ -410,24 +355,6 @@ get_filtered_data <- function(CC,colData,design_formula,path_xy_chr_list,p_sampl
     DDS <- DDS[rowSums(counts(DDS)>=10)>n_samples_min,]
   }
   return(DDS)
-}
-
-get_indices_for_random_dataset_halves <- function(DDS_RUV,min_p_donors_groups){
-  n_samples <- dim(counts(DDS_RUV))[2]
-  first <- sort(sample(1:n_samples, floor(n_samples/2), replace=F))
-  # in case less than 13 individuals in one of the groups draw random numbers again
-  n_SCZ <- sum(DDS_RUV$Group=='SCZ')
-  n_CTRL <- sum(DDS_RUV$Group=='CTRL')
-  while (sum(DDS_RUV$Group[first]=='SCZ')<round(min_p_donors_groups*n_SCZ/2) | sum(DDS_RUV$Group[first]=='CTRL')<round(min_p_donors_groups*n_CTRL/2)){ 
-    first <- sort(sample(1:n_samples, floor(n_samples/2), replace=F))
-  }
-  second <-which((seq(1,n_samples) %in% first) == FALSE)
-  idx_rnd <- list("first"=first, "second"=second)
-  # data_RUV$CC_1st_half <- data_RUV$CC[,idx_rnd_1st]
-  # data_RUV$CC_2nd_half <- data_RUV$CC[,idx_rnd_2nd]
-  # data_RUV$metadata_1st_half <- data_RUV$metadata[idx_rnd_1st,]
-  # data_RUV$metadata_2nd_half <- data_RUV$metadata[idx_rnd_2nd,]
-  return(idx_rnd)
 }
 
 
@@ -456,15 +383,15 @@ get_results_folder<-function(path_res,design_interactions_str,results_subfolder,
   if (results_subfolder!='all'){
     path_res <- paste0(path_res,results_subfolder,'/')
   } 
-  
-  dir.create(path_res,recursive=TRUE, showWarnings = FALSE)
+  create_folder_and_set_permissions(path_res)
+  #dir.create(path_res,recursive=TRUE, showWarnings = FALSE)
   return(path_res)
 }
 
 #sum aggregated data across cell types
 #date: 13.10.2021
 load_count_data_aggregated_across_celltypes <- function(paths, path_code, opt_aggregation, add_str_pagoda, opt_downsampled, i){
-
+  
   setwd(paths$data)
   if (opt_downsampled==TRUE){
     file_str_end <- paste0("_ds_",i,".csv")
@@ -515,82 +442,6 @@ get_sfe_normalized_data <- function(DDS){
   data_sfe_normalized <- counts(DDS)*t(replicate(dim(DDS)[1],DDS$sizeFactor))
 }
 
-#perform MARS and return variables left in MARS model
-get_variables_selected_by_mars <- function(data_all,n_rep,path_results){
-  
-  n_genes <- dim(data_all$CC_sfe_normalized)[1]
-  if (n_genes>1000){
-    n_genes_target <- 1000
-  } else if ((n_genes>=500) & (n_genes<1000)){
-    n_genes_target <- 500
-  } else{
-    n_genes_target <- 1000
-  }
-  
-  if (n_genes_target<=n_genes){
-    for (i in seq(1,n_rep)){
-      idx_rnd <- sample(1:n_genes, n_genes_target, replace=F)
-      #check if always different genes are selected
-      if (i==1){
-        idx_rnd_1<-idx_rnd
-      } else{
-        if (identical(sort(idx_rnd),sort(idx_rnd_1))){
-          print("gene set is identical with first one!")
-          break
-        }
-      }
-      
-      Gene_set_i <- t(as.matrix(data_all$CC_sfe_normalized[idx_rnd,]))
-      # scale gene expression:
-      
-      #rownames(Gene_set_i) <- NULL
-      
-      #metadata$Gene_i <- unlist(t(Gene_i), use.names=FALSE)
-      #basic mars model:
-      mars1 <- earth(
-        Gene_set_i ~ .,
-        data = subset(data_all$metadata, select = -c(donor_ID_python,Group)),
-        trace=2
-      );
-      #show number of terms (vertical line)
-      #somehow extract metadata variables that are in selection
-      #plot(mars1, which=1)
-      #summary(mars1) %>% .$coefficients
-      if (i<=5){
-        png(file=paste0(paste0(paste0(path_results,"Model_error_per_number_of_terms"),i),".png"),width=600, height=550, units='mm', res=300)
-        par(mfrow=c(1,1),mar=c(1,1,1,1)) 
-        plot(mars1, which = 1)
-        dev.off()
-        graphics.off()
-      }
-      
-      selected_terms <- colnames(mars1$bx)[2:dim(mars1$bx)[2]]
-      if ((i==1)&(i==1)){
-        vars_selected <- matrix(FALSE,n_rep,length(rownames(mars1$modvars)))
-        var_list<- list()
-      }
-      j <- 0
-      for (var in rownames(mars1$modvars)){
-        var_list[[var]]<- c()
-        j=j+1
-        for (term_sel in selected_terms){
-          if (str_contains(term_sel,var)){
-            print(term_sel)
-            vars_selected[i,j] <- TRUE
-            var_list[[var]]<- c(var_list[[var]],i)
-            break
-          }
-        }
-      }
-      if (i==1){
-        colnames(vars_selected)<-rownames(mars1$modvars)
-      }
-    }
-  } else{
-    vars_selected <- 303
-  }
-  return(vars_selected)
-}
 
 get_RUV_data <- function(DDS_RUV,res_RUV,opt_filter_high_CT_specificity_genes,path_CT_spec,filename_CT_spec,opt_data_halves,pval_TH,specificity_TH,min_p_donors_groups){
   if (opt_data_halves==TRUE){
@@ -643,149 +494,6 @@ get_RUV_data <- function(DDS_RUV,res_RUV,opt_filter_high_CT_specificity_genes,pa
   return(D)
 }
 
-##for a particular data split: calculate log2FC of DESeq2 result between data halves for a range of RUV values
-get_correlation_LFC_data_halves <- function(DDS, n_RUV_factors, model_str_full,model_str_red, opt_DESeq2_parallel,min_p_donors_groups){
-
-  ## generate indices for random dataset halves
-  idx_rnd <- get_indices_for_random_dataset_halves(DDS,min_p_donors_groups)
-  
-  #initialize correlation value
-  M_cor <- matrix(NaN,1,2)
-  
-  if (n_RUV_factors>0){
-    ## (1) calculate RUVs for n_RUV_factors factors based on filtered data set (including all samples) 
-    #set <- RUVg(D$set_ini, D$empirical, k=n_RUV_factors)
-    
-    #load RUVs
-    set <- readRDS(file=paste0(paths$results_RUV,"set_",as.character(n_RUV_factors),"_RUVS.rds"))
-    
-    RUV_factors <- rep(NaN,n_RUV_factors)
-    for (k in seq(1,n_RUV_factors)){
-      RUV_factors[k] <- paste0("W_",as.character(k))
-    }
-    
-    ## (2) update full and reduced design, include n_RUV_factors RUV factors:
-    model_str_full <- get_design_str(factors_to_include=RUV_factors,opt_RUV=TRUE,opt_red=FALSE)
-    model_str_red <- get_design_str(factors_to_include=RUV_factors,opt_RUV=TRUE,opt_red=TRUE)
-  }
-  
-  design_formula_full <- formula(eval(parse(text=model_str_full)))
-  design_formula_red <- formula(eval(parse(text=model_str_red)))
-  
-  #initialize data halve DDS objects
-  DDS_1st_half_k <- c()
-  DDS_2nd_half_k <- c()
-  
-  #split DDS object and update design:
-  DDS_1st_half_k <- DDS[,idx_rnd$first]
-  DDS_2nd_half_k <- DDS[,idx_rnd$second]
-  DDS_1st_half_k@design <- design_formula_full
-  DDS_2nd_half_k@design <- design_formula_full
-  
-  #for each half: determine how many genes have positive counts (>0) for all samples and decide for sfe setting based on that
-  sfe_type_1st <- get_sfe_type(DDS_1st_half_k)
-  sfe_type_2nd <- get_sfe_type(DDS_2nd_half_k)
-  
-  print("Check 2!")
-  
-  if (n_RUV_factors != 0){
-    # integrate RUV factors in DDS objects colData
-    DDS_1st_half_k <- integrate_RUV_factors_in_DDS_obj(DDS_1st_half_k,set,idx_rnd,'first')
-    DDS_2nd_half_k <- integrate_RUV_factors_in_DDS_obj(DDS_2nd_half_k,set,idx_rnd,'second') 
-  }
-  
-  print("Check 3!")
-  
-  flag_1st <- tryCatch(
-    {
-      #run DSEq2:
-      DDS_1st_half_k <- DESeq(object=DDS_1st_half_k,
-                              parallel=opt_DESeq2_parallel,
-                              sfType = sfe_type_1st, 
-                              test="LRT", 
-                              reduced = design_formula_red, 
-                              useT=TRUE, 
-                              minmu = 1e-6, 
-                              minReplicatesForReplace = Inf)
-      # The return value of `readLines()` is the actual value 
-      # that will be returned in case there is no condition 
-      # (e.g. warning or error). 
-      # You don't need to state the return value via `return()` as code 
-      # in the "try" part is not wrapped inside a function (unlike that
-      # for the condition handlers for warnings and error below)
-      flag <- 0
-    },
-    error=function(cond) {
-      message("Here's the original error message:")
-      message(cond)
-      # Choose a return value in case of error
-      flag <- 303
-      return(flag)
-    },
-    warning=function(cond) {
-      message("Here's the original warning message:")
-      message(cond)
-      # Choose a return value in case of warning
-      flag <- 101
-      return(flag)
-    },
-    finally={
-      #store correlation of log2FoldChanges in correlation matrix (n_splits x n_RUV_factors_max)
-      message(paste0("\n n_RUV_factors = ",as.character(n_RUV_factors))," is done (1/2)! \n")
-    }
-  )
-  print("Check 4!")
-  flag_2nd <- tryCatch(
-    {
-      #run DSEq2:
-      DDS_2nd_half_k <- DESeq(object=DDS_2nd_half_k,
-                              parallel=opt_DESeq2_parallel,
-                              sfType = sfe_type_2nd, 
-                              test="LRT", 
-                              reduced = design_formula_red, 
-                              useT=TRUE, 
-                              minmu = 1e-6, 
-                              minReplicatesForReplace = Inf)
-      
-      # The return value of `readLines()` is the actual value 
-      # that will be returned in case there is no condition 
-      # (e.g. warning or error). 
-      # You don't need to state the return value via `return()` as code 
-      # in the "try" part is not wrapped inside a function (unlike that
-      # for the condition handlers for warnings and error below)
-      flag <- 0
-    },
-    error=function(cond) {
-      message("Here's the original error message:")
-      message(cond)
-      # Choose a return value in case of error
-      flag <- 303
-      return(flag)
-    },
-    warning=function(cond) {
-      message("Here's the original warning message:")
-      message(cond)
-      # Choose a return value in case of warning
-      flag <- 101
-      return(flag)
-    },
-    finally={
-      #store correlation of log2FoldChanges in correlation matrix (n_splits x n_RUV_factors_max)
-      message(paste0("\n n_RUV_factors = ",as.character(n_RUV_factors))," is done (2/2)! \n")
-    }
-  )
-  print("Check 5!")
-  alpha_val<-0.05 # doesn't really matter since all log2FC are used for correlation calculation anyways
-  if (flag_1st==0 & flag_2nd==0){
-    res_1st_half_k <- results(DDS_1st_half_k,alpha=alpha_val,contrast=c("Group", "SCZ","CTRL"),independentFiltering = FALSE)
-    res_2nd_half_k <- results(DDS_2nd_half_k,alpha=alpha_val,contrast=c("Group", "SCZ", "CTRL"),independentFiltering = FALSE)
-    # calculate spearman/ pearson correlation
-    M_cor[1,1] <- cor(res_1st_half_k$log2FoldChange,res_2nd_half_k$log2FoldChange,method="spearman")
-    M_cor[1,2] <- cor(res_1st_half_k$log2FoldChange,res_2nd_half_k$log2FoldChange,method="pearson")
-  }
-  
-  return(M_cor)
-}
 
 #get background gene set
 get_background <- function(path_background,BrainCortex_TH,genetype,opt_background_data,opt_filter_for_protein_coding_genes,version_nr){
@@ -795,6 +503,7 @@ get_background <- function(path_background,BrainCortex_TH,genetype,opt_backgroun
     gene_matrix <- LOAD(paste0(paste0("geneMatrix_",version_nr),".tsv"),path_background)
   }
   if (opt_background_data=="cortex"){
+    browser()
     if (opt_filter_for_protein_coding_genes==TRUE){
       b <- gene_matrix %>% filter(gene_type == genetype, #only protein coding genes
                                   BrainCortex>=BrainCortex_TH,
@@ -822,6 +531,22 @@ get_background <- function(path_background,BrainCortex_TH,genetype,opt_backgroun
     }
   } else if (opt_background_data=="genesMappingToProteinsDetectedInProteomics"){
     b <- LOAD("background_genes_from_proteomics.csv",path_background)
+  } else{
+    # geneMatrix, limit to unique gene_name, protein-coding, autosomal
+    if (opt_filter_for_protein_coding_genes==TRUE){
+      genemx <- gene_matrix %>%
+        filter(dup_gene_name == FALSE & gene_type == "protein_coding") %>%
+        filter(hg19g0 != "chrX" & hg19g0 != "chrY" & hg19g0 != "chrM") 
+    } else{
+      genemx <- gene_matrix %>%
+        filter(dup_gene_name == FALSE) %>%
+        filter(hg19g0 != "chrX" & hg19g0 != "chrY" & hg19g0 != "chrM") 
+    }
+    
+    #=== background genes; brain expressed genes
+    b <- genemx %>% 
+      filter(is.na(BrainCortex)==F & BrainCortex>0) %>%
+      distinct(gene_name,ensgid) 
   }
   return(b)
 }
@@ -1003,7 +728,7 @@ get_settings_for_input_data<- function(opt_input_data){
     CT_groups <- c('all')
   } else if (opt_input_data == "DEG_GSA_result"){ 
     n_clusters_range <- c(15)#,37,3)
-    sub_folders <- c('alpha3/')
+    sub_folders <- c('alpha3/','alpha1/','alpha05/')
     min_overlap_range <- c(3)#c(3,5,10)
     background_folders <- c('cortex/','cortex_pc/','SnRNAseqDet/','SnRNAseqDet_pc/')
     opt_sim_based_on <- 'size' # 'scores'
@@ -1079,16 +804,12 @@ get_settings_for_input_data<- function(opt_input_data){
     CT_groups <- c('all')
   } else if (opt_input_data == "DEG_GSA_result_all_CTs"){
     n_clusters_range <- c(15)#,37,3)
-    sub_folders <- c('alpha3/')
+    sub_folders <- c('alpha3/','alpha1/','alpha05/')
     min_overlap_range <- c(3)#c(3,5,10)
     background_folders <- c('cortex/')
     opt_sim_based_on <- 'size' # 'scores'
     #'all' for plotting pathways significant in any cell type together
-    CT_groups <- c("Excitatory_Layer_5_6_IT_neurons_I","Excitatory_Layer_5_6_IT_neurons_II",
-                   "Excitatory_Layer_5_6_CT_and_NP_neurons","Excitatory_Layer_2_3_IT_neurons_I",
-                   "Excitatory_Layer_2_3_IT_neurons_II", "Excitatory_Layer_3_4_IT_neurons","Excitatory_Layer_3_6_IT_neurons",
-                   "Astrocytes","Endothelial_and_mural_cells","Microglial_cells","Oligodendrocyte_progenitor_cells","Oligodendrocytes",
-                   "Inhibitory_LAMP5_neurons","Inhibitory_PVALB_neurons","Inhibitory_SST_neurons","Inhibitory_VIP_neurons")
+    CT_groups <- c("all")
   }
   if ((str_detect(opt_input_data,"GRN")) && (opt_input_data != "all_GRN_modules_gprofiler_result") && (opt_input_data != "all_bordeaux_modules_gprofiler_result")){
     n_clusters_range <- get_cell_type_clusters_GRN(opt_metacell_settings)
@@ -1097,6 +818,7 @@ get_settings_for_input_data<- function(opt_input_data){
 }
 
 get_GSA_results_as_DF <- function(data_path, p_val_cutoff, opt_up_and_down_sep,opt_input_data){
+
   setwd(data_path)
   D <- c()
   if (opt_up_and_down_sep==FALSE){
@@ -1105,7 +827,7 @@ get_GSA_results_as_DF <- function(data_path, p_val_cutoff, opt_up_and_down_sep,o
     # opt_input_data=="GRN_modules_GSA_result" | opt_input_data=="all_GRN_modules_GSA_result")
     for (file in file_list){
       d <- read.csv2(file) 
-      d <- d %>% select(c('group', 'subgroup', 'geneset','P.bonf.group','TestVar')) %>% filter(P.bonf.group<=p_val_cutoff)
+      d <- d %>% select(c('group', 'subgroup', 'geneset','P.fdr.group','TestVar')) %>% filter(P.fdr.group<=p_val_cutoff)
       if (bool_first==FALSE){
         D <- rbind(D,d)
       } else{
@@ -1122,7 +844,7 @@ get_GSA_results_as_DF <- function(data_path, p_val_cutoff, opt_up_and_down_sep,o
       file_list <- Sys.glob(paste0("*",reg_str,"_all.csv"))
       for (file in file_list){
         d <- read.csv2(file) 
-        d <- d %>% select(c('group', 'subgroup', 'geneset','P.bonf.group','TestVar')) %>% filter(P.bonf.group<=p_val_cutoff)
+        d <- d %>% select(c('group', 'subgroup', 'geneset','P.fdr.group','TestVar')) %>% filter(P.fdr.group<=p_val_cutoff)
         if (bool_first==FALSE){
           if (reg_str == 'up'){
             D$up <- rbind(D$up,d)
@@ -1209,7 +931,6 @@ get_data <- function(opt_input_data,main_path, data_and_results_path,p_val_cutof
   ##"all_GRN_modules_gprofiler_result"
   #"all_bordeaux_modules_gprofiler_result"
   #"proteomics_result"
-  
   if (opt_input_data == "DEG_GSA_and_GRN_modules_gprofiler_result" || opt_input_data == "all_GRN_modules_gprofiler_result" || opt_input_data == "all_bordeaux_modules_gprofiler_result"){
     
     if (opt_input_data == "DEG_GSA_and_GRN_modules_gprofiler_result"){
@@ -1286,20 +1007,20 @@ get_data <- function(opt_input_data,main_path, data_and_results_path,p_val_cutof
     D <- get_proteomics_results(data_and_results_path, p_val_cutoff)
   } else if (opt_input_data == "GRN_modules_GSA_result"){
     D <- get_GSA_results_as_DF(data_and_results_path, p_val_cutoff, opt_up_and_down_sep,opt_input_data)
+  } else if (opt_input_data=="DEG_GSA_result_all_CTs"){
+    D <- get_GSA_results_as_DF(data_and_results_path, p_val_cutoff, T,opt_input_data)
+    if (opt_up_and_down_sep==TRUE){
+      D$up$TestVar <- "DEGs_up"
+      D$down$TestVar <- "DEGs_down"
+    } else{
+      D <- rbind(D$up,D$down)
+      D$TestVar <- "DEGs"
+      #D <- D[ ,-which(names(D) %in% c("group"))]
+      #add GO ID column:
+      #D$ID <- sub(" .*", "", D$geneset)
+    }
   } else{ # implementation for GSA output
     D <- get_GSA_results_as_DF(data_and_results_path, p_val_cutoff, opt_up_and_down_sep,opt_input_data)
-    if (opt_input_data=="DEG_GSA_result_all_CTs"){
-      if (opt_up_and_down_sep==TRUE){
-        D$up$TestVar <- "DEGs_up"
-        D$down$TestVar <- "DEGs_down"
-        D <- rbind(D$up,D$down)
-      } else{
-        D$TestVar <- "DEGs"
-      }
-      D <- D[ ,-which(names(D) %in% c("group"))]
-      #add GO ID column:
-      D$ID <- sub(" .*", "", D$geneset)
-    }
   }
   return(D)
 }
@@ -1381,6 +1102,7 @@ get_all_data <- function(opt_input_data_vec,opt_metacell_settings, main_path,p_v
   }
   return(D_all)
 }
+
 get_results_path <- function(main_path,opt_input_data,cluster_folder,min_overlap,background_folder,sub_folder,opt_metacell_settings){
   if (opt_input_data == "DEG_GSA_result"|| opt_input_data == "DEG_GSA_and_GRN_modules_gprofiler_result" || opt_input_data == "DEG_GSA_result_all_CTs"){
     data_and_results_path <- paste0(main_path,'/output/GSA_analysis/DEGs/v3/',cluster_folder,sub_folder,'min_overlap_',as.character(min_overlap),'/6_RUVs/',background_folder)
@@ -1418,7 +1140,10 @@ plot_pathway_clustering <- function(simMatrix, reducedTerms, results_path, add_s
   #make sure path exists:
   dir.create(path, recursive=TRUE, showWarnings = FALSE)
   
-  graphic_filename_1 <- paste0(path,"heatmap_",add_str,'_',ct_group,'_',GO_category,'_',reg_str,".pdf")
+  ct_group_short <- str_replace(ct_group,"Excitatory","Ext")
+  ct_group_short <- str_replace(ct_group_short,"Inhibitory","Inh")
+  
+  graphic_filename_1 <- paste0(path,"heatmap_",add_str,'_',ct_group_short,'_',GO_category,'_',reg_str,".pdf")
   pdf(file = graphic_filename_1,   # The directory you want to save the file in
       width = 6, # The width of the plot in inches
       height = 6) # The height of the plot in inches
@@ -1430,7 +1155,7 @@ plot_pathway_clustering <- function(simMatrix, reducedTerms, results_path, add_s
   dev.off()
   
   if (dim(reducedTerms)[1]>4){
-    graphic_filename_2 <- paste0(path,"scatter_",add_str,'_',ct_group,'_',GO_category,'_',reg_str,".pdf")
+    graphic_filename_2 <- paste0(path,"scatter_",add_str,'_',ct_group_short,'_',GO_category,'_',reg_str,".pdf")
     pdf(file = graphic_filename_2,   # The directory you want to save the file in
         width = 6, # The width of the plot in inches
         height = 6) # The height of the plot in inches
@@ -1445,19 +1170,20 @@ plot_pathway_clustering <- function(simMatrix, reducedTerms, results_path, add_s
   #   module_list <- hand_curate_colors(module_list)
   #   browser()
   # }
-  graphic_filename_3 <- paste0(path,"treemap_",add_str,'_',ct_group,'_',GO_category,'_',reg_str,".pdf")
+  module_list <- treemapPlot(reducedTerms,size="score")
+  graphic_filename_3 <- paste0(path,"treemap_",add_str,'_',ct_group_short,'_',GO_category,'_',reg_str,".pdf")
   pdf(file = graphic_filename_3,   # The directory you want to save the file in
       width = 6, # The width of the plot in inches
       height = 6) # The height of the plot in inches
-  print(module_list <- treemapPlot(reducedTerms,size="score"))
+  print(module_list)
   dev.off()
   
-  graphic_filename_4 <- paste0(path,"wordcloud_",add_str,'_',ct_group,'_',GO_category,'_',reg_str,".pdf")
-  pdf(file = graphic_filename_4,   # The directory you want to save the file in
-      width = 6, # The width of the plot in inches
-      height = 6) # The height of the plot in inches
-  print(wordcloudPlot(reducedTerms, min.freq=1, colors="black"))
-  dev.off()
+  #graphic_filename_4 <- paste0(path,"wordcloud_",add_str,'_',ct_group_short,'_',GO_category,'_',reg_str,".pdf")
+  #pdf(file = graphic_filename_4,   # The directory you want to save the file in
+  #    width = 6, # The width of the plot in inches
+  #    height = 6) # The height of the plot in inches
+  #print(wordcloudPlot(reducedTerms, min.freq=1, colors="black"))
+  #dev.off()
   
   return(module_list)
 }
@@ -1480,12 +1206,13 @@ get_cell_type_clusters_GRN <- function(opt_metacell_settings){
 }
 
 #plot and save significant genes of different settings 
-plot_significant_genes <- function(DDS,res,alpha,mode,path_results,i) {
+plot_significant_genes <- function(DDS,res,alpha,mode,path_results) {
   sign_genes=which(res$padj<alpha)
   if (sum(res$padj < alpha_val, na.rm=TRUE)>0){
     #n = ceiling(sqrt(length(sign_genes)))
-    filename <- paste0(path_results,"/Sign_genes_",mode,sep='_',".png")
-    png(file=filename,width=600, height=550, units='mm', res=300)
+    filename <- paste0(path_results,"/Sign_genes_",mode,sep='_',".pdf")
+    pdf(file=filename, paper="A4")
+    #png(file=filename,width=600, height=550, units='mm', res=300)
     par(mfrow=c(1,1),mar=c(1,1,1,1)) 
     for (sg in sign_genes){
       plotCounts(DDS, gene=sg, intgroup="Group",cex=2, cex.lab=2, cex.axis=2, cex.main=2, cex.sub=2)
@@ -1497,11 +1224,12 @@ plot_significant_genes <- function(DDS,res,alpha,mode,path_results,i) {
 }
 
 #plot size factors sorted by group
-plot_size_factors <- function(DDS,celltype,path_results,sfe_type,i) {
-  filename <- paste0(path_results,"Size_factors.png")
-  png(file=filename,width=600, height=550, units='mm', res=300)
+plot_size_factors <- function(DDS,celltype,path_results,sfe_type) {
+  filename <- paste0(path_results,"Size_factors.pdf")
+  pdf(file=filename, paper="A4")
+  #png(file=filename,width=600, height=550, units='mm', res=300)
   par(mfrow=c(1,1),mar=c(1,1,1,1))
-  boxplot(DDS$sizeFactor ~ DDS$Group, notch=F, col = c("steelblue","orange"),main=paste0(paste0(paste0(sfe_type," ")," size factors for "),celltype))
+  boxplot(DDS$sizeFactor ~ DDS$Group, notch=F, col = c("steelblue","orange"),main=paste0(sfe_type," size factors for ",celltype))
   stripchart(DDS$sizeFactor[DDS$Group=="CTRL"] ~ DDS$Group[DDS$Group=="CTRL"], add=T, pch=21, vertical = TRUE, method='jitter', jitter=0.2, col = c("black"),bg = c("steelblue"))
   stripchart(DDS$sizeFactor[DDS$Group=="SCZ"] ~ DDS$Group[DDS$Group=="SCZ"], add=T, pch=21, vertical = TRUE, method='jitter', jitter=0.2, col = c("black"),bg = c("orange"))
   dev.off()
@@ -1567,7 +1295,8 @@ plot_RUV_factors <- function(DDS,pData_set,celltype,path_results,variable_name,n
 #         It is more useful visualize the MA-plot for the shrunken log2 fold changes, which remove the noise associated with log2 fold changes 
 #         from low count genes without requiring arbitrary filtering thresholds.
 plot_MA_for_various_shrinkage_types <- function(RES_obj,shrinkage_types,path_res){
-  png(file=paste0(path_res,"Mean_norm_counts_vs_LFC.png"),width=600, height=200, units='mm', res=300)
+  pdf(file=paste0(path_res,"Mean_norm_counts_vs_LFC.pdf"), paper="A4")
+  #png(file=paste0(path_res,"Mean_norm_counts_vs_LFC.png"),width=600, height=200, units='mm', res=300)
   par(mfrow=c(1,length(shrinkage_types)),mar=c(1,1,1,1)) 
   for (st in shrinkage_types){
     if (st == "no_shrinkage"){
@@ -1597,37 +1326,15 @@ visualize_metadata <- function(metadata,path_results){
   for (i in seq(1,length(nums)))
   {
     if (nums[[i]]==T){
-      filename <- paste0(paste0(paste0(path_results,"Boxplot_outlier_check_"),names(nums)[i]),".png")
-      png(file=filename,width=600, height=550, units='mm', res=300)
+      filename <- paste0(paste0(paste0(path_results,"Boxplot_outlier_check_"),names(nums)[i]),".pdf")
+      pdf(file=filename, paper="A4")
+      #png(file=filename,width=600, height=550, units='mm', res=300)
       par(mfrow=c(1,1),mar=c(1,1,1,1)) 
       boxplot(metadata[,names(nums)[i]], col ="orange", main = names(nums)[i])
       dev.off()
       graphics.off()
     }
   }
-}
-
-#visualize spearman correlation of logFC of data set halves for varying number of RUV factors
-visualize_RUV_grid_search<- function(M_cor,path_results){
-  browser()
-  m<-colMeans(M_cor,na.rm=TRUE)
-  e_lower <- colQuantiles(M_cor,probs=0.05,na.rm=TRUE,useNames = FALSE)
-  e_upper <- colQuantiles(M_cor,probs=0.95,na.rm=TRUE,useNames = FALSE)
-  n_RUVs<-colnames(M_cor)
-  n_RUVs <- parse_number(n_RUVs)
-  pdf(file=paste0(path_results,'/Optimal_RUV_factors.pdf'), paper="A4")
-  #par(mfrow=c(1,1),mar=c(1,1,1,1)) 
-  plot(n_RUVs,e_lower,type="l",ylab="Spearman correlation of logFCs",xlab="Number of RUV facors",ylim=c(-0.5,max(M_cor,na.rm=TRUE)),col='grey20',lty='dashed')
-  lines(n_RUVs,e_upper,type="l",col='grey20',lty='dashed')
-  #lines(n_RUVs,rep(0,length(n_RUVs)), type="l",col='black',lty='dashed')
-  x = c(n_RUVs,rev(n_RUVs))
-  y = as.numeric(c(e_upper,rev(e_lower)))
-  polygon(x=x[!is.na(y)],y=y[!is.na(y)], col=rgb(0.05, 0.3, 0.55, 0.5), border=NA)
-  lines(n_RUVs,m,type="b",pch=16,col='black',lwd=1)
-  title(ylab="Spearman correlation of logFCs",xlab="Number of RUV facors")
-  dev.off()
-  #graphics.off()
-  #ggsave(file=paste0(path_results,'/Optimal_RUV_factors.pdf'))
 }
 
 plot_PCA_of_metadata <- function(metadata_imputed_scaled,cols_numeric,path_results){
@@ -1730,9 +1437,9 @@ initialize_results_dataframe <- function(){
 }
 
 #store result of all genes in dataframe:
-save_results_all_genes <- function(RES,R,res,shrinkage_type,sfe_type,path_res,celltype,i){
+get_results_object_all_genes <- function(RES,R,res,shrinkage_type,sfe_type,path_res,celltype,i,alpha_val){
   RES[[shrinkage_type]] <- res
-  write.csv(res,paste0(path_res,paste0('df_results_',shrinkage_type,as.character(i),'.csv')),row.names = TRUE)
+  write.csv(res,paste0(path_res,paste0('df_results_',shrinkage_type,as.character(i),'_all_genes.csv')),row.names = TRUE)
   if (dim(res[!is.na(res$padj) & res$padj<=alpha_val,])[1]!=0){
     R <- get_significant_results(R,res,alpha_val,sfe_type,shrinkage_type,celltype)
   }
@@ -1775,6 +1482,7 @@ GSA_v3 <- function(background, list_column_name, genesetsA, genesetsB, min_numbe
   message("GSA :: hypergeometric gene set analysis by pfs 01/2023")
   message("GSA :: use clean input df (no missings, all ensgid are in geneMatrix)")
   
+
   #keep all the variables in background that are listed (here ensgid and what is provided as DEG_list_column_name)
   list_to_be_tested <- select(background, ensgid, {{list_column_name}}) 
   
@@ -1800,12 +1508,12 @@ GSA_v3 <- function(background, list_column_name, genesetsA, genesetsB, min_numbe
   # note :: 1-2% of geneset ensgid will not be in input (eg input is PC, genesets have lncRNA)
   # compute worst case Phyper too
   Genesets <- merge(gene_setsB, background_clean, by.x = "ensgid", by.y = "ensgid", all.x = TRUE, all.y = FALSE)
-
+  
   # counting
   Test <- Genesets %>%
     mutate(Test2 = Test) %>% 
-    mutate(Test2 = replace_na(Test2,FALSE)) %>%
-    #mutate(Test2 = replace_na(Test2,value=FALSE)) %>%
+    mutate(Test2 = replace_na(Test2,value=FALSE)) %>%
+    #mutate(Test2 = replace_na(Test2,FALSE)) %>%
     #replace_na(list(Test2=FALSE)) %>% #was a necessary change since replace_na function returned an error
     group_by(group, subgroup, genesetID) %>% 
     summarise(nVar  = sum(is.na(Test)==FALSE),
@@ -1885,11 +1593,12 @@ save_pathways_as_csv_file<- function(result_GSA_pathways,result_GSA_sign_pathway
 }
 
 run_pathway_clustering_with_rrvgo <- function(opt_input_data, settings, main_path,p_val_cutoff){
+
   if (str_detect(opt_input_data,"GRN")){
     settings$n_clusters_range <- get_cell_type_clusters_GRN(settings$opt_metacell_settings)
   }
   for (n_clusters in settings$n_clusters_range){
-    if (opt_input_data == "DEG_GSA_result" || opt_input_data == "DEG_GSA_and_GRN_modules_gprofiler_result" || opt_input_data == "all_GRN_modules_gprofiler_result"){  
+    if (opt_input_data == "DEG_GSA_and_GRN_modules_gprofiler_result" || opt_input_data == "all_GRN_modules_gprofiler_result"){  
       if (n_clusters==3){
         cluster_folder <- paste0(n_clusters,'_classes/')
       } else{
@@ -1908,23 +1617,25 @@ run_pathway_clustering_with_rrvgo <- function(opt_input_data, settings, main_pat
           data_and_results_path <- get_results_path(main_path,opt_input_data,cluster_folder,min_overlap,background_folder,sub_folder,settings$opt_metacell_settings)
           
           D <- get_data(opt_input_data,main_path, data_and_results_path,p_val_cutoff, cf, sf, settings$opt_up_and_down_sep,settings$opt_metacell_settings)
-          
+    
           if (settings$opt_up_and_down_sep==FALSE || opt_input_data=="DEG_GSA_and_GRN_modules_gprofiler_result" || opt_input_data == "all_GRN_modules_gprofiler_result"){
             crit <- is.null(D)==FALSE && (dim(D)[1]>0)
             reg_strings <- c('all')
           } else{
             crit <- is.null(D$up)==FALSE && (dim(D$up)[1]>0) && is.null(D$down)==FALSE && (dim(D$down)[1]>0)
-            reg_strings <- c('up','down')
+            reg_strings <- c('down','up')
           }
           if (crit){
             #extract group, subgroup, geneset, 1-P.bonf.group as score
             #put together all up-reg pathways across CTs and all down-reg pathways across CTs 
-            for (reg_str in reg_strings){
-              for (GO_category in c('BP','MF','CC')){
+            for (GO_category in c('BP','CC','MF')){
+         
+              for (reg_str in reg_strings){
                 #filter data set for relevant rows (pathways)
                 if (settings$opt_up_and_down_sep==FALSE || opt_input_data=="DEG_GSA_and_GRN_modules_gprofiler_result" || opt_input_data == "all_GRN_modules_gprofiler_result"){
                   D_sel <- D %>% filter(subgroup==paste0("GO:",GO_category))
                 } else {
+                  #browser()
                   if (reg_str == 'up'){
                     D_sel <- D$up %>% filter(subgroup==paste0("GO:",GO_category))
                   } else {
@@ -1959,25 +1670,25 @@ run_pathway_clustering_with_rrvgo <- function(opt_input_data, settings, main_pat
                     }
                   }
                   
-                  
                   if (dim(D_sel_ct)[1]>2){
                     #load_OrgDb("org.Hs.eg.db")
                     
                     # 1) calculate score similarity matrix
                     simMatrix <- calculateSimMatrix(D_sel_ct$ID,orgdb="org.Hs.eg.db",ont=GO_category,method="Rel")
-                    
+
                     if (!is.null(dim(simMatrix))){
                       if (settings$opt_sim_based_on == 'size'){
                         reducedTerms <- reduceSimMatrix(simMatrix,
-                                                        threshold=0.7,
+                                                        threshold=0.8,
                                                         orgdb="org.Hs.eg.db")
                       } else if (settings$opt_sim_based_on == 'scores'){
-                        scores <- setNames(-log10(D_sel_ct$P.bonf.group), D_sel_ct$ID)
+                        scores <- setNames(-log10(D_sel_ct$P.fdr.group), D_sel_ct$ID)
                         reducedTerms <- reduceSimMatrix(simMatrix,
                                                         scores,
-                                                        threshold=0.7,
+                                                        threshold=0.8,
                                                         orgdb="org.Hs.eg.db")
                       }
+                   
                       #save table of reduced terms:
                       if (opt_input_data == "DEG_GSA_and_GRN_modules_gprofiler_result"){
                         filename_RT <- paste0('reduced_terms_rrvgo_',ct_group,'_',GO_category,'_',settings$opt_sim_based_on,'_',reg_str,'DEG_GSA_and_GRN_modules_gprofiler.csv')
@@ -1990,8 +1701,8 @@ run_pathway_clustering_with_rrvgo <- function(opt_input_data, settings, main_pat
                         write.csv(reducedTerms,paste0(data_and_results_path,filename_RT))
                         
                         module_list <- plot_pathway_clustering(simMatrix, reducedTerms, data_and_results_path, settings$opt_sim_based_on, GO_category, reg_str, ct_group, settings$opt_up_and_down_sep, opt_input_data)
-                        filename_ML <- paste0('module_list_rrvgo_',ct_group,'_',GO_category,'_',settings$opt_sim_based_on,'_',reg_str,'.csv')
-                        write.csv(reducedTerms,paste0(data_and_results_path,filename_ML))
+                        #filename_ML <- paste0('module_list_rrvgo_',ct_group,'_',GO_category,'_',settings$opt_sim_based_on,'_',reg_str,'.csv')
+                        #write.csv(module_list,paste0(data_and_results_path,filename_ML))
                       }
                     }
                   }
@@ -2016,3 +1727,271 @@ save_GO_ensgids <- function(df1,search_terms,search_term_IDs,GO_str){
     fwrite(tmp.genelist,file=paste0(path.out,"ensgid_GO_",GO_str,"_",search_terms[term_i],".tsv"), sep = "\t", col.names = T)
   }
 }
+
+create_folder_and_set_permissions <- function(path){
+
+  if (dir.exists(path)==FALSE){
+    dir.create(path, showWarnings = TRUE, recursive = TRUE, mode = "0777")
+    Sys.chmod(path, mode = "0777", use_umask = TRUE)
+    Sys.umask(mode = NA)
+  }
+}
+
+load_data <- function(WD,GO_group,GSA.FDRthresh,opt_load_rrvgo,opt_sim_based_on,rrvgo_th){
+  #load up and down DEG pathway results
+  dat.down <- read_csv(paste0(WD,"DF_all_down_GOs_only.csv"))
+  dat.up <- read_csv(paste0(WD,"DF_all_up_GOs_only.csv"))
+  dat <- rbind(dat.down,dat.up)
+  rm(dat.up)
+  rm(dat.down)
+  #drop unimportant columns
+  dat <- dat[ , !(names(dat) %in% c("number downregulated genes","number upregulated genes", "TestVar"))]
+  #filter for group
+  dat <- dat[dat$group==paste0("gene-ontology_GO:",GO_group),]
+  #filter for significance
+  dat$P.fdr.group  <- sapply(dat$P.fdr.group ,function(x) gsub(",",".",x))
+  dat$P.fdr.group <- as.numeric(dat$P.fdr.group)
+  dat <- dat[dat$P.fdr.group<=GSA.FDRthresh,]
+
+  #add column go id
+  dat$go <- sapply(dat$geneset,function(x) gsub(" .*","",x))
+  #add column pathway name
+  dat$pathway_name <- sapply(dat$geneset,function(x) gsub("GO:.* ","",x))
+  dat$pathway_name <- sapply(dat$pathway_name,function(x) gsub(paste0("GO",GO_group,"_"),"",x))
+  dat$pathway_name <- sapply(dat$pathway_name,function(x) tolower(x))
+  dat$pathway_name <- sapply(dat$pathway_name,function(x) gsub("_"," ",x))
+  #add regulation variable
+  dat$regulation <- sapply(dat$celltype_name,function(x) sub(".*\\_", "", x))
+  
+  #simplify celltype name
+  dat$celltype_name <- sapply(dat$celltype_name,function(x) gsub("Excitatory","Exc",x))
+  dat$celltype_name <- sapply(dat$celltype_name,function(x) gsub("Inhibitory","Inh",x))
+  dat$celltype_name <- sapply(dat$celltype_name,function(x) gsub(" and ","/",x))
+  dat$celltype_name <- sapply(dat$celltype_name,function(x) gsub("Oligodendrocyte_progenitor_cells","OPCs",x))
+  dat$celltype_name <- sapply(dat$celltype_name,function(x) gsub("_"," ",x))
+  dat$celltype_name <- sapply(dat$celltype_name,function(x) gsub("Layer ","L",x))
+  dat$celltype_name <- sapply(dat$celltype_name,function(x) gsub("2 3","2-3",x))
+  dat$celltype_name <- sapply(dat$celltype_name,function(x) gsub("3 4","3-4",x))
+  dat$celltype_name <- sapply(dat$celltype_name,function(x) gsub("3 6","3-6",x))
+  dat$celltype_name <- sapply(dat$celltype_name,function(x) gsub("5 6","5-6",x))
+  dat$celltype_name <- sapply(dat$celltype_name,function(x) gsub("neurons ","",x))
+  dat$celltype_name <- sapply(dat$celltype_name,function(x) gsub("cells ","",x))
+  
+  #add parentTerm according to rrvgo output
+  if (opt_load_rrvgo){
+    ##rrvgo was applied separately to up and down and some go ids are missing
+    rrvgo_R <- read_csv(paste0(WD,"reduced_terms_rrvgo_all_",GO_group,"_",opt_sim_based_on,"_all.csv"))
+  } else{
+    library(rrvgo)
+    library(data.table)
+    library(tidyverse)
+
+    #-- GO:BP as an example
+    # myres2 is the GSA output
+    simMatrix <- calculateSimMatrix(dat$go,
+                                   orgdb="org.Hs.eg.db",
+                                   ont=c(GO_group), # change to CC or MF if needed
+                                   method="Rel")
+
+    if (opt_sim_based_on == 'size'){
+      #higher threshold --> fewer groups
+      rrvgo_R <- reduceSimMatrix(simMatrix,
+                                threshold=rrvgo_th,
+                                orgdb="org.Hs.eg.db")
+    } else if (opt_sim_based_on == 'scores'){
+      scores <- setNames(-log10(dat$P.fdr.group), dat$go)
+      rrvgo_R <- reduceSimMatrix(simMatrix,
+                                scores,
+                                threshold=rrvgo_th,
+                                orgdb="org.Hs.eg.db")
+    }
+  }
+  dat <- merge(x=dat, y=rrvgo_R[, c("parentTerm","go")], by="go", all.x=TRUE)
+  #rename some columns
+  #"nGenes_CT" (number of genes in the cell type, got from our standard GSA script)
+  colnames(dat)[colnames(dat) == 'genes.TestVar.true'] <- "nGenes_CT"
+  #"nGenes_GO" (number of genes in the GO term, got from our standard GSA script)
+  colnames(dat)[colnames(dat) == 'genes.in.geneset'] <- "nGenes_GO"
+  #"nGenes_overlap" (number of genes in the intersetion, got from our standard GSA script)
+  colnames(dat)[colnames(dat) == 'overlap.TestVar.geneset'] <- "nGenes_overlap"
+  #add "nGenes_overlap_pct" (derived from the above nGenes_* columns; = nGenes_overlap/(nGenes_CT + nGenes_GO - nGenes_overlap))
+  dat$nGenes_overlap_pct <- 100*(dat$nGenes_overlap/(dat$nGenes_CT + dat$nGenes_GO - dat$nGenes_overlap))
+  #sort data set by parentTerm
+  dat <- dat[order(dat$parentTerm),]
+  return(dat)
+}
+
+plot_GSA_enrichment <- function(dat,WD,DEG.alpha,GSA.FDRthresh,GO_group,opt_filter_for_at_least_x_hits_per_parentTerm,opt_sim_based_on,rrvgo_th,content){
+  if (opt_filter_for_at_least_x_hits_per_parentTerm){
+    #define settings:
+    if (content == "module_SYNGO"){
+      height_fig <- 16
+      width_fig <- 8
+      n_pw_th <- 5
+    } else{
+      height_fig <- 13
+      width_fig <- 12
+      n_pw_th <- 9
+    }
+    add_str <- "_filtered"
+    #filter:
+    pts_keep <- c()
+    parentTerms <- unique(dat$parentTerm)
+    parentTerms <- parentTerms[!is.na(parentTerms)]
+    for (pt in parentTerms){
+      hits_pt_i <- sum(dat$parentTerm==pt,na.rm=T) 
+      if (hits_pt_i>=n_pw_th){
+        pts_keep <- c(pts_keep,pt)
+      }
+    }
+    dat <- dat[dat$parentTerm %in% pts_keep,]
+  } else{
+    add_str <- ""
+    if (content == "module_SYNGO"){
+      if (unique(dat$module)=="bordeaux_modules"){
+        height_fig <- 4
+        width_fig <- 7
+      }else{
+        height_fig <- 6
+        width_fig <- 7
+      }
+    }else{
+      height_fig <- 22
+      width_fig <- 12
+    }
+  }
+  
+  if (content == "module_GO" | content == "module_SYNGO"){
+    pl <- ggplot(data=dat,
+                 aes(x=module, y=term_name, 
+                     size=neg_log10_pval,#eval(parse(text=paste0("-log10(","`pval_",ct_name,"_module_",module_color,"`)"))), 
+                     color=nGenes_overlap_pct)) +
+      geom_point()+
+      theme_bw() +
+      facet_grid(rows = vars(parentTerm), scales = "free", space = "free")+
+      theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5),
+            strip.text.y = element_text(angle = 0)
+            #strip.background.y = element_blank(), # these 2 lines remove header of facet_grid(), i.e., parent term names
+            #strip.text.y = element_blank()
+      ) +
+      xlab("") + ylab("") +
+      labs(title=paste0("GO:",GO_group)) +
+      scale_color_viridis(option = "G",begin=0.2,end=0.8,direction=-1) +
+      scale_size(range = c(1,4))
+    path_plots <- modue_genes_path
+    plotname.pl <- paste0(path_plots,GO_group,"_",unique(dat$module),"_GSA_",GSA.FDRthresh,add_str,".pdf")
+  } else{
+    #make two panels next to each other for up and down with shared y axis
+    pl <- ggplot(data=dat,
+                 aes(x=celltype_name, y=pathway_name, 
+                     size=-log10(P.fdr.group), 
+                     color=nGenes_overlap_pct)) +
+      geom_point()+
+      theme_bw() +
+      facet_grid(parentTerm ~ regulation, scales = "free", space = "free")+
+      #facet_wrap(~regulation, scales = "free_x", strip.position = "bottom") +
+      #facet_grid(rows = vars(parentTerm), scales = "free", space = "free") +
+      theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5),
+            strip.text.y = element_text(angle = 0)
+            #strip.background.y = element_blank(), # these 2 lines remove header of facet_grid(), i.e., parent term names
+            #strip.text.y = element_blank()
+      ) +
+      xlab("") + ylab("") +
+      labs(title=paste0("GO:",GO_group)) +
+      scale_color_viridis(option = "G",begin=0.2,end=0.8,direction=-1) + 
+      scale_size(range = c(2,6))
+    path_plots <- paste0(WD,"figures/bubble/rrvgo_",opt_sim_based_on,"/")
+    plotname.pl <- paste0(path_plots,GO_group,"_DEG_",DEG.alpha,"_GSA_",GSA.FDRthresh,add_str,"_rrvgoTH_",sub("0.","",as.character(rrvgo_th)),".pdf")
+  }
+  
+  
+  #- save plot
+  create_folder_and_set_permissions(path_plots)
+  ggsave(plot = pl, filename=plotname.pl, width=width_fig, height=height_fig)
+}
+
+add_overlap_genes_to_pw_result <- function(R_sel,module_genes,go){
+  
+  for (term_i in seq(1,length(R_sel$term_id))){
+    print(R_sel$term_id[term_i])
+    i <- which(go$term==R_sel$term_id[term_i])
+    tmp.genelist <- go[i,"gene"] %>% 
+      as.data.frame() 
+    colnames(tmp.genelist)[1]="ENSGID"
+    #check/ update term size
+    R_sel[term_i,"term_size_updated"] <- dim(tmp.genelist)[1]
+    #determine number genes overlap:
+    R_sel[term_i,"n_genes_overlap"] <- length(intersect(x = module_genes$accession, y= tmp.genelist$ENSGID))
+  }
+  
+  #calculate percentage of genes overlap:
+  R_sel$nGenes_overlap_pct <- 100*(R_sel$n_genes_overlap/(R_sel$term_size_updated + R_sel$query_size - R_sel$n_genes_overlap))
+  return(R_sel)
+}
+
+#older definition:
+# plot_GSA_enrichment <- function(dat,WD,DEG.alpha,GSA.FDRthresh,GO_group,opt_filter_for_at_least_15_hits_per_parentTerm,opt_sim_based_on,rrvgo_th){
+# 
+#   if (opt_filter_for_at_least_15_hits_per_parentTerm){
+#     pts_keep <- c()
+#     parentTerms <- unique(dat$parentTerm)
+#     parentTerms <- parentTerms[!is.na(parentTerms)]
+#     for (pt in parentTerms){
+#       hits_pt_i <- sum(dat$parentTerm==pt,na.rm=T) 
+#       if (hits_pt_i>=9){
+#         pts_keep <- c(pts_keep,pt)
+#       }
+#     }
+#     dat <- dat[dat$parentTerm %in% pts_keep,]
+#     height_fig <- 13
+#     add_str <- "_filtered"
+#   } else{
+#     height_fig <- 22
+#     add_str <- ""
+#   }
+#   #make two panels next to each other for up and down with shared y axis
+#   pl <- ggplot(data=dat,
+#                aes(x=celltype_name, y=pathway_name, 
+#                    size=-log10(P.fdr.group), 
+#                    color=nGenes_overlap_pct)) +
+#     geom_point()+
+#     theme_bw() +
+#     facet_grid(parentTerm ~ regulation, scales = "free", space = "free")+
+#     #facet_wrap(~regulation, scales = "free_x", strip.position = "bottom") +
+#     #facet_grid(rows = vars(parentTerm), scales = "free", space = "free") +
+#     theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5),
+#           strip.text.y = element_text(angle = 0)
+#           #strip.background.y = element_blank(), # these 2 lines remove header of facet_grid(), i.e., parent term names
+#           #strip.text.y = element_blank()
+#     ) +
+#     xlab("") + ylab("") +
+#     labs(title=paste0("GO:",GO_group)) +
+#     scale_color_viridis(option = "D",direction=-1)
+#   
+#   #- save plot
+#   path_plots <- paste0(WD,"figures/bubble/rrvgo_",opt_sim_based_on,"/")
+#   create_folder_and_set_permissions(path_plots)
+#   plotname.pl <- paste0(path_plots,GO_group,"_DEG_",DEG.alpha,"_GSA_",GSA.FDRthresh,add_str,"_rrvgoTH_",sub("0.","",as.character(rrvgo_th)),".pdf")
+#   ggsave(plot = pl, filename=plotname.pl, width=12, height=height_fig)
+# }
+
+plot_SYNGO_for_module <- function(syngo_results_path,module_name,modue_genes_path,module_genes_file){
+  
+  files <- list.files(syngo_results_path)
+  syngo_file <- "syngo_ontologies_with_annotations_matching_user_input.xlsx"
+  SP <- read_excel(paste0(syngo_results_path,syngo_file))
+  SP_sign <- SP[which(SP$`GSEA 'gene cluster' FDR corrected p-value`<=alpha), ]
+  module_genes <- read.csv(module_genes_file)
+  module_genes_list <- module_genes[module_genes$module_name == full_module_name,"accession"]
+  SP_sign$nGenes_overlap_pct <- 100*SP_sign$`GSEA count foreground/input`/(SP_sign$`GSEA count background` + length(module_genes_list) - SP_sign$`GSEA count foreground/input`)
+  SP_sign$term_name <- SP_sign$`GO term name`
+  SP_sign$module <- module_name 
+  SP_sign$neg_log10_pval <- (-1)*log10(SP_sign$`GSEA 'gene cluster' FDR corrected p-value`)
+  SP_sign$parentTerm <- paste0("SYNGO:",SP_sign$`GO domain`)
+  if (module_name=="bordeaux_modules"){
+    plot_GSA_enrichment(SP_sign,syngo_results_path,c(),alpha,"SYNGO",F,c(),c(),"module_SYNGO")
+  } else{
+    plot_GSA_enrichment(SP_sign,modue_genes_path,c(),alpha,"SYNGO",F,c(),c(),"module_SYNGO")
+  }
+}
+
