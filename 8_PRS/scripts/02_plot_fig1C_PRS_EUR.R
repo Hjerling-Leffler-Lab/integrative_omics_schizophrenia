@@ -12,8 +12,7 @@ a <- fread(paste(OUTDIR,"brn_GRS_EUR.tsv",sep=""))
 mytest <- t.test(a[a$PHENO==2,"S4_0.1"],a[a$PHENO==1,"S4_0.1"]) # t-test for standardized PRS; PRS calculated with the p-threshold method with SNP-P≤0.1
 
 p <- ggplot(a,aes(x=Phenotype, y=S4_0.1, fill=Phenotype)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_jitter(color="black",size=0.6, alpha=0.5) +
+  geom_density(alpha=.3) +
   scale_fill_manual(values=c("#f59f1c","#3d699b")) +
   ylab("Standardized schizophrenia PRS") + xlab("(European ancestry)") +
   theme_classic() +
