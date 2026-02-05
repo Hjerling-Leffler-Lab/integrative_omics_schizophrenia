@@ -1,4 +1,7 @@
-# run CoMM-S4 (pmid=34616426) for brain cell type eQTLs and scz2022-EUR
+# File name: 03_run_comms4.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-10-28 
+# aim: run CoMM-S4 (pmid=34616426) for brain cell type eQTLs and scz2022-EUR
 
 library(CoMM)
 

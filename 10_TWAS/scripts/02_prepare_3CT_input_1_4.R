@@ -1,4 +1,9 @@
 #!/usr/bin/env Rscript
+
+# File name: 02_prepare_3CT_input_1_4.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-10-28 
+
 args = commandArgs(trailingOnly=TRUE)
 
 library(data.table)

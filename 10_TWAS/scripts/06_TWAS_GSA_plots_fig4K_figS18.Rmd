@@ -1,0 +1,476 @@
+---
+title: "TWAS gene Gene Set Analysis"
+author: "Shuyang Yao (shuyang.yao@ki.se)"
+date: "2023-11-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+  
+- Purpose: Here we perform the gene set analysis (GSA) for the TWAS genes at TWAS-FDR≤0.3 level.  
+- Hypergeometric test was used to do the GSA.  
+- Output:  
+ = Figure 4 panels K, L, and M (treemap plot for GO:BP in Excitatory, Inhibitory, and NonNeuronal cell types), at GSA test FDR≤0.05  
+ = Figure S18 (dot plot for GO:BP, CC, and MF for each cell type), at GSA test FDR≤0.05
+  
+--- script starts ---  
+  
+GO Pathway enrichment using hypergeometric test:  
+```{r}
+library(data.table)
+library(tidyverse)
+library(ggplot2)
+library(rstatix)
+
+# hypergeometic test
+
+#====== gene set analysis in this context ======;
+  # N = Ngene = genes in geneset_background (ie brain expressed)
+  # R = VLIST = genes implicated in TWAS;
+  # n = nVar  = genes in genesets
+  # x = xVar  = overlap of R and n
+  # PH= phyper(x-1, R, N-R, n, lower.tail=FALSE)
+
+#====== background geneset
+# geneMatrix, limit to unique gene_name, protein-coding, autosomal
+# have to look at 1:1 mouse-human as all pathways are human
+a <- fread("./workflow/geneMatrix.tsv.gz") %>%
+  filter(dup_gene_name == FALSE & gene_type == "protein_coding") %>%
+  filter(hg19g0 != "chrX" & hg19g0 != "chrY" & hg19g0 != "chrM") 
+
+#=== background genes; brain expressed genes
+background <- a %>% 
+  filter(is.na(BrainCortex)==F & BrainCortex>0) %>%
+  distinct(ensgid) 
+Ngene <- as.numeric(nrow(background))
+
+#=== get genesets, INNER join to limit to background
+b <- fread("./workflow/genesetsB.tsv.gz", stringsAsFactors=FALSE, data.table=FALSE) # gene list of GO pathways
+genesets0 <- inner_join(background, b, by = "ensgid")
+genesets <- genesets0 %>%
+  filter(group %in% c("gene-ontology","synaptic-gene-ontology","GWAS"))
+rm(a,b)
+
+#############################
+#############################
+# TWAS per cell type
+TWAS.FDRthresh=0.3
+df.cluster <-fread("T13_Table_TWAS_full_results.tsv") %>% # supplementary table 13
+  filter(level=="16 cell types") %>%
+  filter(FDR_fr_Padj<=TWAS.FDRthresh) %>%
+  rename(lvl=level, CT=cell_type) %>%
+  arrange(lvl,CT)
+CT <- unique(df.cluster$CT)
+#############################
+#############################
+
+# enrichment analysis:
+GSA.FDRthresh=0.05
+for(i in 1:length(CT)){
+  mydatname <- CT[i]
+  tmp <- df.cluster %>% distinct(CT,lvl) %>% filter(CT==mydatname)
+  mylvl <- as.character(tmp[1,"lvl"])
+  b <- df.cluster %>% 
+    filter(CT==mydatname) %>% 
+    select(ensgid) %>%
+    mutate(mydat=1)
+  
+  #=== INNER join with test list background, count "R"
+  c <- inner_join(background, b, by = "ensgid") 
+  R <- as.numeric(sum(c$mydat))
+  
+  #=== get the overlap, LEFT to preserve full geneset
+  # add count vars, fix NAs
+  j <- left_join(genesets, c, by = "ensgid") %>%
+    select(-ensgid) %>%
+    mutate(cnt = 1) %>%
+    replace_na(list(mydat=0))
+  
+  #=== get P-hyper
+  l <- j %>%
+    group_by(group, subgroup, genesetID) %>% 
+    summarise(nGenes=sum(cnt),
+              Ngene = Ngene,
+              R = R,
+              x=sum(mydat)) %>%
+    ungroup() %>%
+    filter(nGenes>=0)
+  
+  l$PH <- phyper(l$x-1, l$R, l$Ngene-l$R, l$nGenes, lower.tail=FALSE)
+  
+  l <- l %>% 
+    group_by(group) %>%
+    adjust_pvalue(p.col = "PH", output.col = "P.fdr.group", method = "fdr") %>%
+    ungroup()
+  
+  #=== select sig. results
+  g <- l %>% filter(P.fdr.group<=GSA.FDRthresh) 
+  g$annotation <- mydatname
+  g$annotation_lvl <- mylvl
+
+  #=== store results in one data frame (differentiated by "annotation" column)
+  if(i==1){
+    myres <- g
+  }else{
+    myres <- rbind(myres, g)
+  }
+}
+
+#- get meanings of genesets
+genesetsA <- fread("./workflow/genesetsA.tsv.gz")
+
+myres <- myres %>%
+  left_join(genesetsA, by="genesetID") %>% 
+  filter(subgroup!="HPO")  %>%
+  separate(col=geneset, sep=" ", into=c("ID","description")) %>%
+  mutate(annotation_broad15CT=case_when(substr(annotation,1,3)=="Exc" ~ "Excitatory", # combine 16 cell types into 3 classes
+                                    substr(annotation,1,3)=="Inh" ~ "Inhibitory",
+                                    substr(annotation,1,3)=="Oli" ~ "Olig_OPC")) %>%
+  select(annotation, annotation_lvl, annotation_broad15CT, subgroup, ID, description, P.fdr.group, nGenes, Ngene, R, x, PH)
+
+#- output
+outfile <- "./10_TWAS/output/fig4KLM/df_15CT_TWAS0.3_GSA0.05_GO_group3class.tsv"
+fwrite(myres, file=outfile, sep="\t", col.names = T)
+
+```
+  
+rrvgo plot, Fig 4KLM: TWAS FDR≤0.3, GSA FDR≤0.05  
+```{r}
+library(data.table)
+library(tidyverse)
+library(ggplot2)
+library(rrvgo)
+
+# set path
+OUTDIR <- "./10_TWAS/output/fig4KLM/"
+# read data
+myres <- fread(paste(OUTDIR,"df_15CT_TWAS0.3_GSA0.05_GO_group3class.tsv",sep=""))
+
+# plot rrvgo
+for (myCT in c("Excitatory","Inhibitory","NonNeuronal")) {
+  dat <- myres %>% filter(annotation_broad15CT==myCT)
+  scores <- setNames(-log10(dat$P.fdr.group), dat$ID)
+  
+  #- get similarity matrix, for BP, CC, and MF separately
+  simMatrix.BP <- calculateSimMatrix(dat$ID,
+                                           orgdb="org.Hs.eg.db",
+                                           ont=c("BP"),
+                                           method="Rel")
+  # input of plots
+  reducedTerms.BP <- reduceSimMatrix(simMatrix.BP,
+                                           scores,
+                                           threshold=0.7,
+                                           orgdb="org.Hs.eg.db")
+  
+  # plot
+  plotname <- paste(OUTDIR,"fig4_",myCT,"_BP.pdf", sep="")
+  pdf(file=plotname)
+  treemapPlot(reducedTerms.BP)
+  dev.off()
+}
+
+
+```
+  
+dop plot, FigS18: TWAS FDR≤0.3, GSA FDR≤0.15  
+```{r}
+setwd("./10_TWAS/output/fig4K/")
+
+# read in data
+dat2.BP <- fread("01_df3BP_TWAS0.3_GSA0.05_15CT_rrvgo_grp_forPlot.tsv") 
+dat2.CC <- fread("01_df3CC_TWAS0.3_GSA0.05_15CT_rrvgo_grp_forPlot.tsv") 
+dat2.MF <- fread("01_df3MF_TWAS0.3_GSA0.05_15CT_rrvgo_grp_forPlot.tsv") 
+
+#- check statistics, set limits of size and color for plotting
+summary(-log10(dat2.BP$P.fdr.group))
+summary(-log10(dat2.CC$P.fdr.group))
+summary(-log10(dat2.MF$P.fdr.group))
+
+summary(dat2.BP$nGenes_overlap_pct)
+summary(dat2.CC$nGenes_overlap_pct)
+summary(dat2.MF$nGenes_overlap_pct)
+
+size.lim <- c(0.5,3.5)
+color.lim <- c(min(dat2.BP$nGenes_overlap_pct,
+                   dat2.CC$nGenes_overlap_pct,
+                   dat2.MF$nGenes_overlap_pct)-0.005,
+               max(dat2.BP$nGenes_overlap_pct,
+                   dat2.CC$nGenes_overlap_pct,
+                   dat2.MF$nGenes_overlap_pct)+0.005)
+
+# columns for the plot
+#- "annotation" (cell type, e.g., Ex_3-4_IT)        
+#- "geneset" (e.g., GO:0099504 synaptic vesicle cycle)
+#- "P.fdr.group" (FDR adjusted P values)
+#- "parentTerm" (name of parent GO term)
+#- "nGenes_overlap_pct" (the relative size of the overlap between cell type TWAS genes and GO term genes, derived as: nGenes_overlap/(nGenes_CT + nGenes_GO - nGenes_overlap))
+#-* "nGenes_GO" (number of genes in the GO term)
+#-* "nGenes_CT" (number of genes in the cell type)
+#-* "nGenes_overlap" (number of genes in the intersection)
+
+
+#---- fig 4K ----#
+
+#-- GO:CC
+dat2.CC$annotation <- factor(dat2.CC$annotation, 
+                             levels = unique(dat2.CC$annotation)[c(2:9,1,10,11)])
+
+p.cc <- ggplot(data=dat2.CC,
+               aes(x=annotation, 
+                   y=geneset2, 
+                   size=-log10(P.fdr.group),
+                   color=nGenes_overlap_pct)) +
+  geom_point()+
+  theme_bw() +
+  facet_grid(rows = vars(parentTerm), scales = "free", space = "free") +
+  theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5),
+        strip.background.y = element_blank(), # these 2 lines remove header of facet_grid(), i.e., parent term names
+        strip.text.y = element_blank()
+  ) +
+  xlab("") + ylab("") +
+  labs(title = "GO:CC",
+       size = "-log10(FDR)",
+       color = "% gene overlap") +
+  scale_color_viridis(option = "D", direction = -1,
+                      limits=color.lim,
+                      breaks = c(0.01, 0.02, 0.03, 0.04),
+                      labels = c("1%", "2%", "3%", "4%")) +
+  scale_size(range=size.lim, breaks = c(1.5, 2, 2.5)) 
+
+ggsave(plot = p.cc, filename="fig4K_TWAS0.3_GSA0.05_goCC.pdf")
+
+
+#---- fig S18 ----#
+
+#-- GO:BP 
+dat2.BP$annotation <- factor(dat2.BP$annotation, 
+                             levels = unique(dat2.BP$annotation)[c(3:8,1:2,9)])
+
+p.bp <- ggplot(data=dat2.BP,
+               aes(x=annotation, 
+                   y=geneset2, 
+                   size=-log10(P.fdr.group),
+                   color=nGenes_overlap_pct)) +
+  geom_point()+
+  theme_bw() +
+  facet_grid(rows = vars(parentTerm), scales = "free", space = "free") +
+  theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5),
+        strip.background.y = element_blank(), # these 2 lines remove header of facet_grid(), i.e., parent term names
+        strip.text.y = element_blank()
+  ) +
+  xlab("") + ylab("") +
+  labs(title = "GO:BP",
+       size = "-log10(FDR)",
+       color = "% gene overlap") +
+  scale_color_viridis(option = "D", direction = -1,
+                      limits=color.lim,
+                      breaks = c(0.01, 0.02, 0.03, 0.04),
+                      labels = c("1%", "2%", "3%", "4%")) +
+  scale_size(range=size.lim, breaks = c(1.5, 2, 2.5)) 
+
+#-- GO:MF
+dat2.MF$annotation <- factor(dat2.MF$annotation, 
+                             levels = unique(dat2.MF$annotation)[c(2:3,1,4:5)])
+
+p.MF <- ggplot(data=dat2.MF,
+               aes(x=annotation, 
+                   y=geneset2, 
+                   size=-log10(P.fdr.group),
+                   color=nGenes_overlap_pct)) +
+  geom_point()+
+  theme_bw() +
+  facet_grid(rows = vars(parentTerm), scales = "free", space = "free") +
+  theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5),
+        strip.background.y = element_blank(), # these 2 lines remove header of facet_grid(), i.e., parent term names
+        strip.text.y = element_blank()
+  ) +
+  xlab("") + ylab("") +
+  labs(title = "GO:MF",
+       size = "-log10(FDR)",
+       color = "% gene overlap") +
+  scale_color_viridis(option = "D", direction = -1,
+                      limits=color.lim,
+                      breaks = c(0.01, 0.02, 0.03, 0.04),
+                      labels = c("1%", "2%", "3%", "4%")) +
+  scale_size(range=size.lim, breaks = c(1.5, 2, 2.5)) 
+
+#-- Combine:
+library(cowplot)
+right_panel <- plot_grid(p.cc + theme(legend.position = "none"), 
+                         p.MF + theme(legend.position = "none"), 
+                         ncol = 1, align = "v")
+
+# Combine 
+final_plot <- plot_grid(p.bp, right_panel, 
+                        ncol = 2, 
+                        rel_widths = c(2.8, 2),
+                        align = "h")
+
+#- figure S18 (full result of TWAS GSA)
+setwd("./10_TWAS/output/figS18/")
+ggsave(plot = final_plot, 
+       filename="figS18_TWAS0.3_GSA0.05_15CT.pdf", 
+       width=14, height=10)
+
+#-- end --#
+```
+  
+```{r}
+library(data.table)
+library(tidyverse)
+library(ggplot2)
+library(readxl)
+library(rrvgo)
+
+MYOUTDIR="./10_TWAS/output/figS18/"
+
+#- specify threshold
+TWAS.FDRthresh=0.3
+GSA.FDRthresh=0.15
+lvl="15CT"
+
+df.color <- read_excel("./workflow/Cell_type_colors.xlsx")%>%
+  distinct(`Cell type (15)`, `Cell type (15) color`)
+colnames(df.color) <- c("CellType","CT_color")
+df.color$CellType <- gsub(" ", "_", df.color$CellType)
+
+#- run rrvgo
+a <- fread("./workflow/geneMatrix.tsv.gz") %>%
+  filter(dup_gene_name == FALSE & gene_type == "protein_coding") %>%
+  filter(hg19g0 != "chrX" & hg19g0 != "chrY" & hg19g0 != "chrM") 
+
+#=== background genes; brain expressed genes
+background <- a %>% 
+  filter(is.na(BrainCortex)==F & BrainCortex>0) %>%
+  distinct(ensgid) 
+Ngene <- as.numeric(nrow(background))
+
+#=== get genesets, INNER join to limit to background
+b <- fread("./workflow/genesetsB.tsv.gz", stringsAsFactors=FALSE, data.table=FALSE) # gene list of GO pathways
+genesets0 <- inner_join(background, b, by = "ensgid")
+genesets <- genesets0 %>%
+  filter(group %in% c("gene-ontology","synaptic-gene-ontology","GWAS"))
+rm(a,b)
+
+#=== TWAS per cell type
+df.cluster <-fread("T13_Table_TWAS_full_results.tsv") %>% # supplementary table 13
+  filter(level=="16 cell types") %>%
+  filter(FDR_fr_Padj<=TWAS.FDRthresh) %>%
+  rename(lvl=level, CT=cell_type) %>%
+  arrange(lvl,CT)
+CT <- unique(df.cluster$CT)
+
+#=== enrichment analysis:
+for(i in 1:length(CT)){
+  mydatname <- CT[i]
+  tmp <- df.cluster %>% distinct(CT,lvl) %>% filter(CT==mydatname)
+  mylvl <- as.character(tmp[1,"lvl"])
+  b <- df.cluster %>% 
+    filter(CT==mydatname) %>% 
+    select(ensgid) %>%
+    mutate(mydat=1)
+  
+  #=== INNER join with test list background, count "R"
+  c <- inner_join(background, b, by = "ensgid") 
+  R <- as.numeric(sum(c$mydat))
+  
+  #=== get the overlap, LEFT to preserve full geneset
+  # add count vars, fix NAs
+  j <- left_join(genesets, c, by = "ensgid") %>%
+    select(-ensgid) %>%
+    mutate(cnt = 1) %>%
+    replace_na(list(mydat=0))
+  
+  #=== get P-hyper
+  l <- j %>%
+    group_by(group, subgroup, genesetID) %>% 
+    summarise(nGenes=sum(cnt),
+              Ngene = Ngene,
+              R = R,
+              x=sum(mydat)) %>%
+    ungroup() %>%
+    filter(nGenes>=0)
+  
+  l$PH <- phyper(l$x-1, l$R, l$Ngene-l$R, l$nGenes, lower.tail=FALSE)
+  
+  l <- l %>% 
+    group_by(group) %>%
+    adjust_pvalue(p.col = "PH", output.col = "P.fdr.group", method = "fdr") %>%
+    ungroup()
+  
+  #=== select sig. results
+  g <- l %>% filter(P.fdr.group<=GSA.FDRthresh) 
+  g$annotation <- mydatname
+  g$annotation_lvl <- mylvl
+
+  #=== store results in one data frame (differentiated by "annotation" column)
+  if(i==1){
+    myres <- g
+  }else{
+    myres <- rbind(myres, g)
+  }
+}
+
+#=== get meanings of genesets
+genesetsA <- fread("./workflow/genesetsA.tsv.gz")
+
+myres <- myres %>%
+  left_join(genesetsA, by="genesetID") %>% 
+  filter(subgroup!="HPO")  %>%
+  separate(col=geneset, sep=" ", into=c("ID","description"), remove = F)
+
+myres2 <- myres %>%
+  left_join(df.color, by=c("annotation"="CellType"))
+scores <- setNames(-log10(myres2$P.fdr.group), myres2$ID)
+
+# short CT names
+myres2$annotation <- gsub("_neurons","",myres2$annotation)
+myres2$annotation <- gsub("_Layer","",myres2$annotation)
+myres2$annotation <- gsub("Oligodendrocyte_progenitor_cells","OPC",myres2$annotation)
+myres2$annotation <- gsub("Excitatory","Ex",myres2$annotation)
+myres2$annotation <- gsub("Inhibitory","Inh",myres2$annotation)
+
+#== loop over the GO categories and make dot plots
+for(myGO in c("BP", "CC", "MF")){
+  simMatrix <- calculateSimMatrix(myres2$ID,
+                                   orgdb="org.Hs.eg.db",
+                                   ont=myGO,
+                                   method="Rel")
+  reducedTerms <- reduceSimMatrix(simMatrix,
+                                   scores,
+                                   threshold=0.7,
+                                   orgdb="org.Hs.eg.db")
+  dat2 <- myres2 %>% 
+    select(annotation,geneset,P.fdr.group,CT_color,ID,subgroup) %>%
+    inner_join(reducedTerms,by=c("ID"="go")) 
+  
+  #- plot
+  tmp <- dat2 %>% distinct(annotation, CT_color) 
+  dat2$annotation <- factor(dat2$annotation, levels=tmp$annotation)
+  p <- ggplot(data=dat2,
+            aes(x=annotation, y=geneset, color=annotation, size=-log10(P.fdr.group))) +
+  #geom_point(shape=15) +
+  geom_point() +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5)) +
+  scale_color_manual(values=tmp$CT_color) +
+  facet_grid(rows = vars(parentTerm), scales = "free",space = "free") +
+  theme(strip.text.y = element_blank()) +
+  xlab("") + ylab("") +
+  labs(title=paste("GO:", myGO,sep=""))
+  
+  plotname <- paste(MYOUTDIR,"figS18_",myGO,"_TWAS",TWAS.FDRthresh,"_GSA",GSA.FDRthresh,"_",lvl,".pdf", sep="")
+  if(myGO=="BP"){
+    ggsave(plot = p, filename=plotname, width=12, height=16.5)
+  }elseif(myGO=="CC"){
+    ggsave(plot = p, filename=plotname, width=10, height=10)
+  }elseif(myGO=="MF"){
+    ggsave(plot = p, filename=plotname, width=11, height=7)
+  }
+}
+
+```
+  
+--- script ends ---  

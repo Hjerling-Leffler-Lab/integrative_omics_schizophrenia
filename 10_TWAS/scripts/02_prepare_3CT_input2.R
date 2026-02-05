@@ -1,3 +1,7 @@
+# File name: 02_prepare_3CT_input2.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-10-28 
+
 library(data.table)
 library(tidyverse)
 
