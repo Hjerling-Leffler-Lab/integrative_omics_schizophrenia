@@ -51,7 +51,6 @@ get_color_palettes <- function(data_path){
 
 #load data from loom
 load_data_for_cacoa <- function(data_path, filename){
-  
   file_with_path <- paste0(data_path,filename)
   print(file_with_path)
   #Connect Loom File
@@ -62,8 +61,8 @@ load_data_for_cacoa <- function(data_path, filename){
   return(data)
 }
 
-build_cacoa_object <- function(data,n_cluster,n_cores,opt_cluster_based, CT_i, palettes, opt_run_per){
-  
+build_cacoa_object <- function(data,n_cluster,n_cores,data_subset_mode, palettes, opt_run_per){
+
   cell_groups <- data[[paste0(paste0('col_attrs/cluster_name_',n_cluster),'CTs')]][]
   #remove CT none (removed)
   if (opt_run_per!='celltype'){
@@ -71,13 +70,21 @@ build_cacoa_object <- function(data,n_cluster,n_cores,opt_cluster_based, CT_i, p
   } else if (opt_run_per == 'celltype'){
     #get CT list
     CT_list = unique(cell_groups)
-    if (opt_cluster_based==FALSE){
+    
+    #pick which cells to analyse
+    if (data_subset_mode=="neurons_only"){
+      #filter out non-neuronal cell types
+      CT_list_filtered <- CT_list[startsWith(CT_list, "Exc")|startsWith(CT_list, "Inh")]
+      #only store values for neuronal CT in object
+      idx <- which(cell_groups %in% CT_list_filtered)
+    } else if (data_subset_mode=="all_cells"){
       #only store values for current CT in object
-      idx <- which(cell_groups == CT_list[CT_i])
+      idx <- which(cell_groups %in% CT_list)
     } else{
-      #idx <- seq(1,length(cell_groups))
+      #only remove removed cells but test all cell types in file
       idx <- which(!(cell_groups %in% c('none (removed)')))
     }
+      
   }
   cell_groups <- cell_groups[idx]
   cellIDs <- data[['col_attrs/CellID']][idx]
@@ -88,68 +95,64 @@ build_cacoa_object <- function(data,n_cluster,n_cores,opt_cluster_based, CT_i, p
   names(sample_groups) <- sample_per_cell
   names(cell_groups) <- cellIDs
   names(sample_per_cell) <- cellIDs
-  
-  genes <- data[['row_attrs/Gene']][]
+
+  #genes <- data[['row_attrs/Gene']][]
+  acc <- data[['row_attrs/Accession']][]
   #data matrix selection:
   mat <- t(data[["matrix"]][idx,])
+  print("matrix created")
   
-  rownames(mat) <- genes
+  #close loom file connection
+  data$close_all()
+  
+  rownames(mat) <- acc
   colnames(mat) <- cellIDs
+  print("matrix named")
   # make Seurat oject
   seurat_obj <- CreateSeuratObject(counts = mat, project = "SeuratProject", assay="RNA", min.cells = 0, min.features = 0,meta.data = NULL)
+  print("SeuratObject created")
+  rm(mat)
   #DefaultAssay(seurat_obj) <- "RNA"
   seurat_obj<-FindVariableFeatures(seurat_obj,nfeatures=2000)
+  seurat_obj <- NormalizeData(seurat_obj,normalization.method = "LogNormalize",scale.factor = 10000, margin = 1)
   seurat_obj <- ScaleData(seurat_obj, verbose=FALSE)
   seurat_obj <- RunPCA(seurat_obj,npcs=30,verbose=FALSE)
   seurat_obj <- RunUMAP(seurat_obj, reduction = "pca", dims=1:25)
   #how much var is explained?
   #(seurat_obj@reductions$pca@stdev)^2
-  if (opt_cluster_based==FALSE){
-    seurat_obj<- FindNeighbors(seurat_obj, reduction="pca", dims = 1:25, k.param = 60, prune.SNN = 1/15) #reduction= "umap", dims = 1:2, verbose = T)
-    seurat_obj<- FindClusters(seurat_obj, algorithm= 1, resolution = 0.5, verbose = T, graph.name = "RNA_snn")
-  }
-  
+  #if (opt_cluster_based==FALSE){
+  #  seurat_obj<- FindNeighbors(seurat_obj, reduction="pca", dims = 1:25, k.param = 60, prune.SNN = 1/15) #reduction= "umap", dims = 1:2, verbose = T)
+  #  seurat_obj<- FindClusters(seurat_obj, algorithm= 1, resolution = 0.5, verbose = T, graph.name = "RNA_snn")
+  #}
+  print("Seurat pipeline done")
   #will be automatically stored in cao object
-  
+
   #build the cacoa object
   cao <- cacoa::Cacoa$new(
     seurat_obj, sample.groups=sample_groups, cell.groups=cell_groups,sample.per.cell = sample_per_cell,
     target.level='SCZ', ref.level='CTRL', n.cores=n_cores, verbose=FALSE, graph.name="RNA_snn"
   )
+  print("cacoa object built I")
   rm(seurat_obj)
   
   #store colors:
   cao$sample.groups.palette = palettes$scz_ctrl_pal
   cao$cell.groups.palette = palettes$ct_palette
-  
+  print("cacoa object built II")
   #cao$embedding <- Embeddings(seurat_obj,reduction="pca")[,1:20]
   return(cao)
 }
 
-#resort CT labels
-resort_CT_labels <- function(CT_levels){
-  CT_levels_ordered <- CT_levels[CT_levels!='none (removed)'] 
-  idx_micro <- which(CT_levels_ordered=="Microglial cells")
-  idx_endo <- which(CT_levels_ordered=="Endothelial and mural cells" )
-  CT_levels_ordered <- CT_levels_ordered[c(seq(idx_endo+1,idx_micro-1),seq(1,idx_endo),seq(idx_micro,length(CT_levels_ordered)))]
-  return(CT_levels_ordered)
-}
-
 cluster_based_analysis <- function(cao, results_path){
-  #resort CT labels 
-  if (opt_inhibitory_only==FALSE){
-    CT_levels_ordered <- resort_CT_labels(levels(cao$cell.groups))
-  } else{
-    CT_levels_ordered <- levels(cao$cell.groups)[levels(cao$cell.groups)!='none (removed)'] 
-  }
-  
   graphic_filename_1 <- paste0(results_path,"clusterBased_group_size.pdf")
   pdf(file = graphic_filename_1,   # The directory you want to save the file in
       width = 6, # The width of the plot in inches
       height = 6) # The height of the plot in inches
-  print(cao$plotCellGroupSizes(show.significance=TRUE, legend.position='top')+coord_flip()+scale_x_discrete(limits = rev(CT_levels_ordered)))
+  print(cao$plotCellGroupSizes(show.significance=TRUE, legend.position='top')+coord_flip()+scale_x_discrete(limits = rev(levels(cao$cell.groups))))
   dev.off()
   
+  print("plot 1 done!")
+
   #plot compositional changes:
   cao$estimateCellLoadings()
   p_val_per_CT <- cao$test.results$coda$pval
@@ -162,8 +165,11 @@ cluster_based_analysis <- function(cao, results_path){
   pdf(file = graphic_filename_2,   # The directory you want to save the file in
       width = 10, # The width of the plot in inches
       height = 6) # The height of the plot in inches
-  print(gg_loadings) #+ geom_text(x=1, y=length(CT_levels_ordered), label=paste0("p-value = ",pval_smallest))) #The red line here shows statistical significance
+  print(gg_loadings) #+ geom_text(x=1, y=length(levels(cao$cell.groups)), label=paste0("p-value = ",pval_smallest))) #The red line here shows statistical significance
   dev.off()
+  
+  print("plot 2 done!")
+  
   # if there is no red line --> no significant changes
   # 
   #plot contrast tree
@@ -189,6 +195,8 @@ cluster_based_analysis <- function(cao, results_path){
   print(gg_ms_tree)
   dev.off()
   
+  print("plot 3 done!")
+  
   #plot expression changes:
   cao$estimateExpressionShiftMagnitudes(n.cores=n_cores)
   
@@ -200,6 +208,7 @@ cluster_based_analysis <- function(cao, results_path){
   dev.off()
   #Here, y-axis shows magnitude of changes, while asterisks on top of bars show their significance.
   #analyse influence of metadata (only meaningful if something is significant)
+  print("plot 4 done!")
 }
 
 plotContrastTree_v2 <- function (d.counts, d.groups, ref.level, target.level, plot.theme = theme_get(), 
