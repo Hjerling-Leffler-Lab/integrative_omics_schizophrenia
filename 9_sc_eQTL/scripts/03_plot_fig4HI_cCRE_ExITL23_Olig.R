@@ -1,3 +1,8 @@
+# 03_plot_fig4HI_cCRE_ExITL23_Olig.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-10-24 
+# aim: plot figure 4HI
+
 library(data.table)
 library(tidyverse)
 library(ggplot2)

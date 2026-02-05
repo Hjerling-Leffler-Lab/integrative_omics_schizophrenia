@@ -1,3 +1,8 @@
+# 03_plot_fig4C_dist_to_TSS_3CT.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-04-30 
+# aim: plot figure 4C
+
 library(data.table)
 library(tidyverse)
 library(ggplot2)

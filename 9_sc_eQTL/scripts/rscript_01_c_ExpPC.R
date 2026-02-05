@@ -1,6 +1,11 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly = TRUE)
 
+# File name: rscript_01_c_ExpPC.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-04-05 
+# Aim: generate expression PC.
+
 library(data.table)
 library(tidyverse)
 library(FactoMineR)

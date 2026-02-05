@@ -1,6 +1,11 @@
 #!/usr/bin/env Rscript
 args = commandArgs(trailingOnly = TRUE)
 
+# File name: rscript_02_eQTL_qvalue_3CT.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-04-05 
+# Aim: generate q-value.
+
 #--- script starts ---#
 
 library(data.table)

@@ -1,4 +1,6 @@
 # File name: rscript_01_b2_Get_Exp_Input_3CT.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-04-04 
 # Aim: generate expression input for eQTL analysis.
 
 #--- script starts ---#

@@ -1,3 +1,8 @@
+# 03_plot_fig4G_cCRE_3CT.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-10-24 
+# aim: plot figure 4G
+
 library(data.table)
 library(tidyverse)
 library(ggplot2)

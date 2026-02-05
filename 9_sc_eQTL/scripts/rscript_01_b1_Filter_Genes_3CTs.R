@@ -1,4 +1,6 @@
 # File name: 00_01_b1_Filter_Genes_3CTs.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-04-02 
 # Aim: Remove genes for eQTL analysis; keep genes with ≥1 count in ≥10% cells in each cell type
 
 #--- script starts ---#

@@ -1,4 +1,10 @@
 #!/usr/bin/env Rscript
+
+# File name: rscript_02_eQTL_qvalue_16CT.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-04-05 
+# Aim: generate q-value.
+
 args = commandArgs(trailingOnly = TRUE)
 myct=args[1]
 WD=paste("./9_sc_eQTL/output/16CT/", myct, "/", sep="")

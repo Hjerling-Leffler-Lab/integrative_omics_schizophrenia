@@ -1,3 +1,8 @@
+# 03_plot_fig4AB_nr_eQTL_15CT.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-04-30 
+# aim: plot figure 4AB
+
 library(data.table)
 library(tidyverse)
 library(ggplot2)

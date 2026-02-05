@@ -1,3 +1,8 @@
+# 03_plot_figS14_cCRE_16CT.R
+# author: Shuyang Yao (shuyang.yao@ki.se)
+# date: 2024-10-24 
+# aim: plot figure S14
+
 library(data.table)
 library(tidyverse)
 library(ggplot2)
