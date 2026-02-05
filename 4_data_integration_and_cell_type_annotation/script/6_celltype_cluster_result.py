@@ -270,9 +270,4 @@ if opt_plot:
             print(variables_color_code)
             ut.plot_PCA_UMAP_clusterContribution_from_loom(lf_name, loom_file_path, add_str_figure_file_name, path_results_figures,variables_color_code,single_marker_gene_list,single_marker_CT_list,lei_res,opt_server,False,opt_which_clustering,n_clusters_range,opt_abundance,opt_sep_4_scz_ctrl,opt_plot_umap)
 
-    # 3) plot scmap annotation specificity for each cluster
-    
-#how many cells in removed clusters 
-#fn ='Samples_Inhibitory_conos_velocyto_TH_and_D_adj_v1_filtered_and_CT_annotated_and_CT_clustered.loom'
-#D = loompy.connect(fn)
-#len(D.ca['CT_ann_ABM_MCA_scmap_cell2cluster_76CTs'][D.ca['cluster']=='remove'].tolist())
+
