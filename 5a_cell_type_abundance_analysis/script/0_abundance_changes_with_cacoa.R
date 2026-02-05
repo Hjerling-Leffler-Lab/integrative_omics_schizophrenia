@@ -3,7 +3,7 @@
 #about: cacoa for snRNAseq SCZ CTRL data (https://github.com/kharchenkolab/cacoa) to perform comparitive analysis of case vs. control
 #       i) analysis of compositional shifts (cluster-based/ using CT annotation)
 #       ii) analysis of transcriptional shifts (cluster-free/ not using CT annotation)
-#       Fig. 1F
+#       Fig. 1F, S5A
 #version: 0.0.3
 
 library(dplyr)
